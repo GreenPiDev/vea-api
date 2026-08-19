@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { SOCKET_EVENTS } from './socket-events';
 
 interface JoinExhibitionPayload {
   exhibitionId: string;
@@ -35,6 +36,9 @@ function socketData(client: Socket): SocketData {
  * avatar/movement sync, sanal kokteyl, artwork-level view-duration tracking.
  * This gateway just establishes the room/broadcast plumbing those features
  * will reuse later.
+ *
+ * Event names all come from ./socket-events.ts (SOCKET_EVENTS) — never a
+ * string literal here — see that file's header comment for why.
  */
 @WebSocketGateway({ cors: { origin: '*' } })
 export class ExhibitionGateway implements OnGatewayDisconnect {
@@ -45,14 +49,16 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @SubscribeMessage('exhibition:join')
+  @SubscribeMessage(SOCKET_EVENTS.ExhibitionJoin)
   async handleJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: JoinExhibitionPayload,
   ): Promise<void> {
     const exhibitionId = payload?.exhibitionId;
     if (!exhibitionId) {
-      client.emit('exhibition:error', { message: 'exhibitionId is required' });
+      client.emit(SOCKET_EVENTS.ExhibitionError, {
+        message: 'exhibitionId is required',
+      });
       return;
     }
 
@@ -60,7 +66,7 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
       where: { id: exhibitionId },
     });
     if (!exhibition || exhibition.status !== 'ACTIVE') {
-      client.emit('exhibition:error', {
+      client.emit(SOCKET_EVENTS.ExhibitionError, {
         message: 'Exhibition not found or not active',
       });
       return;
@@ -89,7 +95,7 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
     this.broadcastCount(exhibitionId);
   }
 
-  @SubscribeMessage('exhibition:leave')
+  @SubscribeMessage(SOCKET_EVENTS.ExhibitionLeave)
   async handleLeave(@ConnectedSocket() client: Socket): Promise<void> {
     const exhibitionId = socketData(client).exhibitionId;
     if (exhibitionId) {
@@ -117,6 +123,6 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
     const count = this.server.sockets.adapter.rooms.get(room)?.size ?? 0;
     this.server
       .to(room)
-      .emit('exhibition:visitorCount', { exhibitionId, count });
+      .emit(SOCKET_EVENTS.ExhibitionVisitorCount, { exhibitionId, count });
   }
 }

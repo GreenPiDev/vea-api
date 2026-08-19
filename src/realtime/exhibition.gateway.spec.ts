@@ -1,5 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { ExhibitionGateway } from './exhibition.gateway';
+import { SOCKET_EVENTS } from './socket-events';
 import { PrismaService } from '../prisma/prisma.service';
 
 describe('ExhibitionGateway', () => {
@@ -54,7 +55,7 @@ describe('ExhibitionGateway', () => {
       const client = makeClient('sock-1');
       await gateway.handleJoin(asSocket(client), { exhibitionId: '' });
 
-      expect(client.emit).toHaveBeenCalledWith('exhibition:error', {
+      expect(client.emit).toHaveBeenCalledWith(SOCKET_EVENTS.ExhibitionError, {
         message: 'exhibitionId is required',
       });
       expect(prisma.exhibition.findUnique).not.toHaveBeenCalled();
@@ -68,7 +69,7 @@ describe('ExhibitionGateway', () => {
       const client = makeClient('sock-1');
       await gateway.handleJoin(asSocket(client), { exhibitionId: 'exh-1' });
 
-      expect(client.emit).toHaveBeenCalledWith('exhibition:error', {
+      expect(client.emit).toHaveBeenCalledWith(SOCKET_EVENTS.ExhibitionError, {
         message: 'Exhibition not found or not active',
       });
       expect(client.join).not.toHaveBeenCalled();
@@ -92,7 +93,7 @@ describe('ExhibitionGateway', () => {
       });
       expect(emittedTo).toContainEqual({
         room: 'exhibition:exh-1',
-        event: 'exhibition:visitorCount',
+        event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 1 },
       });
     });
@@ -109,7 +110,7 @@ describe('ExhibitionGateway', () => {
 
       expect(emittedTo.at(-1)).toEqual({
         room: 'exhibition:exh-1',
-        event: 'exhibition:visitorCount',
+        event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 2 },
       });
     });
@@ -142,7 +143,7 @@ describe('ExhibitionGateway', () => {
       expect(client.leave).toHaveBeenCalledWith('exhibition:exh-1');
       expect(emittedTo.at(-1)).toEqual({
         room: 'exhibition:exh-1',
-        event: 'exhibition:visitorCount',
+        event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 0 },
       });
     });
@@ -160,7 +161,7 @@ describe('ExhibitionGateway', () => {
 
       expect(emittedTo.at(-1)).toEqual({
         room: 'exhibition:exh-1',
-        event: 'exhibition:visitorCount',
+        event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 0 },
       });
     });
