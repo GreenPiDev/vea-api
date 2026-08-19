@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { ArtistProfilesModule } from './artist-profiles/artist-profiles.module';
 import { ArtworksModule } from './artworks/artworks.module';
 import { ExhibitionsModule } from './exhibitions/exhibitions.module';
+import { OffersModule } from './offers/offers.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ExhibitionsModule } from './exhibitions/exhibitions.module';
     ArtistProfilesModule,
     ArtworksModule,
     ExhibitionsModule,
+    OffersModule,
   ],
   controllers: [AppController],
   providers: [
