@@ -129,6 +129,7 @@ model Artwork {
   note            String?
   category        ArtworkCategory
   priceAmount     Int
+  currency        String
   imageUrl        String
   model3dUrl      String?
   status          ArtworkStatus          @default(DRAFT)
@@ -182,6 +183,7 @@ model Offer {
   artworkId           String
   buyerId             String
   amount              Int
+  currency            String
   status              OfferStatus @default(PENDING)
   commissionAmount    Int?
   commissionTaxAmount Int?
