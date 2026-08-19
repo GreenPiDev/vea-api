@@ -1,12 +1,227 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------- Enums ----------
+
+enum UserRole {
+  VISITOR
+  ARTIST
+  INSTITUTION
+  ADMIN
+}
+
+enum ArtworkCategory {
+  PAINTING
+  SCULPTURE
+  PHOTOGRAPHY
+  OTHER
+}
+
+enum ArtworkOrientation {
+  PORTRAIT
+  LANDSCAPE
+  SQUARE
+}
+
+enum ArtworkConditionStatus {
+  ORIGINAL
+  RESTORED
+  DAMAGED
+  OTHER
+}
+
+enum ArtworkStatus {
+  DRAFT
+  LISTED
+  IN_EXHIBITION
+  SOLD
+  ARCHIVED
+}
+
+enum ExhibitionStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  PAYMENT_HELD
+  DELIVERED
+  RELEASED
+  CANCELLED
+}
+
+enum TransactionStatus {
+  PENDING
+  HELD
+  RELEASED
+  REFUNDED
+  FAILED
+}
+
+enum VisitEventType {
+  EXHIBITION_ENTER
+  ARTWORK_VIEW
+  ARTWORK_VIEW_END
+}
+
+// ---------- Models ----------
+
+model MarketingSource {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+model User {
+  id                String   @id @default(cuid())
+  phone             String   @unique
+  name              String?
+  email             String?  @unique
+  role              UserRole @default(VISITOR)
+  marketingSourceId String?
+  createdAt         DateTime @default(now())
+
+  marketingSource MarketingSource? @relation(fields: [marketingSourceId], references: [id])
+  artistProfile   ArtistProfile?
+  offers          Offer[]
+
+  @@index([marketingSourceId])
+}
+
+model ArtistProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  displayName     String
+  bio             String?
+  institutionName String?
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id])
+  artworks    Artwork[]
+  exhibitions Exhibition[]
+}
+
+model Artwork {
+  id              String                 @id @default(cuid())
+  artistProfileId String
+  title           String
+  technique       String?
+  yearCreated     Int?
+  heightCm        Float
+  widthCm         Float
+  orientation     ArtworkOrientation
+  story           String?
+  conditionStatus ArtworkConditionStatus @default(ORIGINAL)
+  conditionNotes  String?
+  note            String?
+  category        ArtworkCategory
+  priceAmount     Int
+  imageUrl        String
+  model3dUrl      String?
+  status          ArtworkStatus          @default(DRAFT)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  artistProfile   ArtistProfile       @relation(fields: [artistProfileId], references: [id])
+  exhibitionLinks ExhibitionArtwork[]
+  offers          Offer[]
+  visitEvents     VisitEvent[]
+
+  @@index([artistProfileId])
+  @@index([status])
+}
+
+model Exhibition {
+  id             String           @id @default(cuid())
+  ownerProfileId String
+  title          String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime
+  status         ExhibitionStatus @default(DRAFT)
+  sceneConfig    Json?
+  createdAt      DateTime         @default(now())
+
+  ownerProfile ArtistProfile       @relation(fields: [ownerProfileId], references: [id])
+  artworkLinks ExhibitionArtwork[]
+  visitEvents  VisitEvent[]
+
+  @@index([ownerProfileId])
+  @@index([status])
+}
+
+model ExhibitionArtwork {
+  id           String @id @default(cuid())
+  exhibitionId String
+  artworkId    String
+  positionData Json?
+  order        Int?
+
+  exhibition Exhibition @relation(fields: [exhibitionId], references: [id])
+  artwork    Artwork    @relation(fields: [artworkId], references: [id])
+
+  @@unique([exhibitionId, artworkId])
+  @@index([artworkId])
+}
+
+model Offer {
+  id                  String      @id @default(cuid())
+  artworkId           String
+  buyerId             String
+  amount              Int
+  status              OfferStatus @default(PENDING)
+  commissionAmount    Int?
+  commissionTaxAmount Int?
+  createdAt           DateTime    @default(now())
+  respondedAt         DateTime?
+
+  artwork     Artwork      @relation(fields: [artworkId], references: [id])
+  buyer       User         @relation(fields: [buyerId], references: [id])
+  transaction Transaction?
+
+  @@index([artworkId])
+  @@index([buyerId])
+  @@index([status])
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  offerId     String            @unique
+  provider    String
+  providerRef String?
+  status      TransactionStatus @default(PENDING)
+  heldAt      DateTime?
+  releasedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  offer Offer @relation(fields: [offerId], references: [id])
+}
+
+model VisitEvent {
+  id           String         @id @default(cuid())
+  exhibitionId String
+  artworkId    String?
+  sessionId    String
+  eventType    VisitEventType
+  durationMs   Int?
+  occurredAt   DateTime       @default(now())
+
+  exhibition Exhibition @relation(fields: [exhibitionId], references: [id])
+  artwork    Artwork?   @relation(fields: [artworkId], references: [id])
+
+  @@index([exhibitionId, occurredAt])
+  @@index([artworkId, occurredAt])
 }
