@@ -5,3 +5,6 @@ coverage
 
 # Keep environment variables out of version control
 .env
+
+# Claude Code internal notes — kept local, not pushed
+CLAUDE.md
