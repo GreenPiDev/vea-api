@@ -33,6 +33,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   JWT_EXPIRES_IN: string = '7d';
+
+  @IsString()
+  @IsOptional()
+  REDIS_URL: string = 'redis://localhost:6379';
 }
 
 export function validate(config: Record<string, unknown>) {
