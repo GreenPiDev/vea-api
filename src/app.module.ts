@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ArtistProfilesModule } from './artist-profiles/artist-profiles.module';
 import { ArtworksModule } from './artworks/artworks.module';
+import { ExhibitionsModule } from './exhibitions/exhibitions.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ArtworksModule } from './artworks/artworks.module';
     AuthModule,
     ArtistProfilesModule,
     ArtworksModule,
+    ExhibitionsModule,
   ],
   controllers: [AppController],
   providers: [

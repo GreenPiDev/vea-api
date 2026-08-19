@@ -13,7 +13,7 @@ import { ArtworksService } from './artworks.service';
 import { CreateArtworkDto } from './dto/create-artwork.dto';
 import { UpdateArtworkDto } from './dto/update-artwork.dto';
 import { SetArtworkStatusDto } from './dto/set-artwork-status.dto';
-import { ListArtworksQueryDto } from './dto/list-artworks-query.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
@@ -23,7 +23,7 @@ export class ArtworksController {
   constructor(private readonly artworks: ArtworksService) {}
 
   @Get()
-  list(@Query() query: ListArtworksQueryDto) {
+  list(@Query() query: PaginationQueryDto) {
     return this.artworks.findPublic(query.take, query.skip);
   }
 
