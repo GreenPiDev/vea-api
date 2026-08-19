@@ -86,18 +86,39 @@ model MarketingSource {
 
 model User {
   id                String   @id @default(cuid())
-  phone             String   @unique
+  email             String   @unique
+  phone             String?  @unique
   name              String?
-  email             String?  @unique
   role              UserRole @default(VISITOR)
   marketingSourceId String?
   createdAt         DateTime @default(now())
 
-  marketingSource MarketingSource? @relation(fields: [marketingSourceId], references: [id])
-  artistProfile   ArtistProfile?
-  offers          Offer[]
+  marketingSource   MarketingSource?   @relation(fields: [marketingSourceId], references: [id])
+  artistProfile     ArtistProfile?
+  offers            Offer[]
+  verificationCodes VerificationCode[]
 
   @@index([marketingSourceId])
+}
+
+enum VerificationChannel {
+  EMAIL
+  SMS
+}
+
+model VerificationCode {
+  id         String              @id @default(cuid())
+  userId     String
+  channel    VerificationChannel @default(EMAIL)
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int                 @default(0)
+  createdAt  DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, channel])
 }
 
 model ArtistProfile {
