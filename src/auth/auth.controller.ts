@@ -4,15 +4,14 @@ import {
   Get,
   HttpCode,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RequestCodeDto } from './dto/request-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
 import { UsersService } from '../users/users.service';
 import type { JwtPayload } from './strategies/jwt.strategy';
 
@@ -41,8 +40,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async me(@Req() req: Request) {
-    const payload = req.user as JwtPayload;
-    return this.users.findById(payload.sub);
+  async me(@CurrentUser() user: JwtPayload) {
+    return this.users.findById(user.sub);
   }
 }

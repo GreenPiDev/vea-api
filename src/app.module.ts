@@ -9,6 +9,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { ArtistProfilesModule } from './artist-profiles/artist-profiles.module';
+import { ArtworksModule } from './artworks/artworks.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { UsersModule } from './users/users.module';
     HealthModule,
     UsersModule,
     AuthModule,
+    ArtistProfilesModule,
+    ArtworksModule,
   ],
   controllers: [AppController],
   providers: [
