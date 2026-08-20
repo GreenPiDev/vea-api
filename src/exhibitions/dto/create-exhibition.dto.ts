@@ -1,8 +1,10 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsInt,
   IsOptional,
   IsString,
+  Min,
   MaxLength,
   MinLength,
   ValidateNested,
@@ -29,6 +31,13 @@ export class CreateExhibitionDto {
 
   @IsDateString()
   endDate: string;
+
+  // Curator-set cap on how many artworks may ever be placed in this
+  // exhibition at once (across all walls). Nullable = unlimited.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxArtworks?: number;
 
   // 3D scene layout data, stored as an opaque JSON column (no migration for
   // shape changes) but validated as a discriminated union — see scene-config.dto.ts.

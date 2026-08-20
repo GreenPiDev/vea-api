@@ -175,6 +175,7 @@ model Exhibition {
   endDate       DateTime
   status        ExhibitionStatus @default(DRAFT)
   sceneConfig   Json?
+  maxArtworks   Int?
   createdAt     DateTime         @default(now())
 
   curator      User                @relation(fields: [curatorUserId], references: [id])

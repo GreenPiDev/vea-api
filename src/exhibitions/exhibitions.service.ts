@@ -38,6 +38,7 @@ export class ExhibitionsService {
         description: dto.description,
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
+        maxArtworks: dto.maxArtworks,
         sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
       },
     });
@@ -110,6 +111,7 @@ export class ExhibitionsService {
         description: dto.description,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        maxArtworks: dto.maxArtworks,
         sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
       },
     });
@@ -166,7 +168,7 @@ export class ExhibitionsService {
     userId: string,
     dto: AddArtworkToExhibitionDto,
   ) {
-    await this.assertOwnership(exhibitionId, userId);
+    const exhibition = await this.assertOwnership(exhibitionId, userId);
     // Curator role, not artist ownership — a curator places any artist's
     // artwork into the exhibitions they run (cross-artist curation).
     const artwork = await this.prisma.artwork.findUnique({
@@ -177,6 +179,17 @@ export class ExhibitionsService {
       throw new ConflictException(
         `Cannot place a ${artwork.status} artwork into an exhibition`,
       );
+    }
+
+    if (exhibition.maxArtworks != null) {
+      const placedCount = await this.prisma.exhibitionArtwork.count({
+        where: { exhibitionId },
+      });
+      if (placedCount >= exhibition.maxArtworks) {
+        throw new ConflictException(
+          `Exhibition already has the maximum of ${exhibition.maxArtworks} artworks placed`,
+        );
+      }
     }
 
     const existing = await this.prisma.exhibitionArtwork.findUnique({

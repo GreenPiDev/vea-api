@@ -25,6 +25,7 @@ describe('ExhibitionsService', () => {
       update: jest.Mock<Promise<unknown>, [unknown]>;
       delete: jest.Mock<Promise<unknown>, [unknown]>;
       deleteMany: jest.Mock<Promise<unknown>, [unknown]>;
+      count: jest.Mock<Promise<number>, [unknown]>;
     };
     artwork: {
       findUnique: jest.Mock<Promise<unknown>, [unknown]>;
@@ -34,10 +35,11 @@ describe('ExhibitionsService', () => {
   };
   let service: ExhibitionsService;
 
-  const exhibitionWithStatus = (status: string) => ({
+  const exhibitionWithStatus = (status: string, maxArtworks: number | null = null) => ({
     id: 'exhibition-1',
     status,
     curatorUserId: ownerUserId,
+    maxArtworks,
   });
 
   beforeEach(() => {
@@ -57,6 +59,7 @@ describe('ExhibitionsService', () => {
         deleteMany: jest
           .fn<Promise<unknown>, [unknown]>()
           .mockResolvedValue({}),
+        count: jest.fn<Promise<number>, [unknown]>().mockResolvedValue(0),
       },
       artwork: {
         findUnique: jest.fn<Promise<unknown>, [unknown]>(),
@@ -266,6 +269,60 @@ describe('ExhibitionsService', () => {
           order: 2,
         },
       });
+    });
+
+    it('rejects placement once maxArtworks is already reached', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT', 2),
+      );
+      prisma.artwork.findUnique.mockResolvedValueOnce({
+        id: 'artwork-1',
+        status: 'LISTED',
+      });
+      prisma.exhibitionArtwork.count.mockResolvedValueOnce(2);
+
+      await expect(
+        service.addArtwork('exhibition-1', ownerUserId, {
+          artworkId: 'artwork-1',
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.exhibitionArtwork.create).not.toHaveBeenCalled();
+    });
+
+    it('allows placement under an unreached maxArtworks cap', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT', 2),
+      );
+      prisma.artwork.findUnique.mockResolvedValueOnce({
+        id: 'artwork-1',
+        status: 'LISTED',
+      });
+      prisma.exhibitionArtwork.count.mockResolvedValueOnce(1);
+      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+
+      await service.addArtwork('exhibition-1', ownerUserId, {
+        artworkId: 'artwork-1',
+      });
+
+      expect(prisma.exhibitionArtwork.create).toHaveBeenCalled();
+    });
+
+    it('does not count-check when maxArtworks is unset (unlimited)', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+      prisma.artwork.findUnique.mockResolvedValueOnce({
+        id: 'artwork-1',
+        status: 'LISTED',
+      });
+      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+
+      await service.addArtwork('exhibition-1', ownerUserId, {
+        artworkId: 'artwork-1',
+      });
+
+      expect(prisma.exhibitionArtwork.count).not.toHaveBeenCalled();
+      expect(prisma.exhibitionArtwork.create).toHaveBeenCalled();
     });
   });
 
