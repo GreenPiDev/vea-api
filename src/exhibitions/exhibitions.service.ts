@@ -192,14 +192,19 @@ export class ExhibitionsService {
       }
     }
 
-    const existing = await this.prisma.exhibitionArtwork.findUnique({
-      where: {
-        exhibitionId_artworkId: { exhibitionId, artworkId: dto.artworkId },
-      },
+    // Scoped to artworkId only, not exhibitionId+artworkId — an artwork may
+    // be placed in at most one exhibition at a time, DRAFT ones included
+    // (Artwork.status only flips LISTED->IN_EXHIBITION when its exhibition
+    // goes ACTIVE, so without this check the same LISTED artwork could be
+    // added to two different DRAFT exhibitions with nothing to catch it).
+    const existing = await this.prisma.exhibitionArtwork.findFirst({
+      where: { artworkId: dto.artworkId },
     });
     if (existing)
       throw new ConflictException(
-        'Artwork is already placed in this exhibition',
+        existing.exhibitionId === exhibitionId
+          ? 'Artwork is already placed in this exhibition'
+          : 'Artwork is already placed in another exhibition',
       );
 
     return this.prisma.exhibitionArtwork.create({

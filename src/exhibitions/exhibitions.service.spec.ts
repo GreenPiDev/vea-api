@@ -22,6 +22,7 @@ describe('ExhibitionsService', () => {
     exhibitionArtwork: {
       create: jest.Mock<Promise<unknown>, [unknown]>;
       findUnique: jest.Mock<Promise<unknown>, [unknown]>;
+      findFirst: jest.Mock<Promise<unknown>, [unknown]>;
       update: jest.Mock<Promise<unknown>, [unknown]>;
       delete: jest.Mock<Promise<unknown>, [unknown]>;
       deleteMany: jest.Mock<Promise<unknown>, [unknown]>;
@@ -54,6 +55,7 @@ describe('ExhibitionsService', () => {
       exhibitionArtwork: {
         create: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
         findUnique: jest.fn<Promise<unknown>, [unknown]>(),
+        findFirst: jest.fn<Promise<unknown>, [unknown]>(),
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
         delete: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
         deleteMany: jest
@@ -202,7 +204,7 @@ describe('ExhibitionsService', () => {
         status: 'LISTED',
         artistProfileId: 'profile-of-' + otherUserId,
       });
-      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
       await service.addArtwork('exhibition-1', ownerUserId, {
         artworkId: 'artwork-1',
@@ -235,7 +237,7 @@ describe('ExhibitionsService', () => {
         id: 'artwork-1',
         status: 'LISTED',
       });
-      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce({
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce({
         exhibitionId: 'exhibition-1',
       });
 
@@ -246,6 +248,26 @@ describe('ExhibitionsService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    it('rejects an artwork already placed in a different (e.g. another DRAFT) exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+      prisma.artwork.findUnique.mockResolvedValueOnce({
+        id: 'artwork-1',
+        status: 'LISTED',
+      });
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce({
+        exhibitionId: 'some-other-exhibition',
+      });
+
+      await expect(
+        service.addArtwork('exhibition-1', ownerUserId, {
+          artworkId: 'artwork-1',
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.exhibitionArtwork.create).not.toHaveBeenCalled();
+    });
+
     it('places a valid, LISTED artwork', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('DRAFT'),
@@ -254,7 +276,7 @@ describe('ExhibitionsService', () => {
         id: 'artwork-1',
         status: 'LISTED',
       });
-      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
       await service.addArtwork('exhibition-1', ownerUserId, {
         artworkId: 'artwork-1',
@@ -298,7 +320,7 @@ describe('ExhibitionsService', () => {
         status: 'LISTED',
       });
       prisma.exhibitionArtwork.count.mockResolvedValueOnce(1);
-      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
       await service.addArtwork('exhibition-1', ownerUserId, {
         artworkId: 'artwork-1',
@@ -315,7 +337,7 @@ describe('ExhibitionsService', () => {
         id: 'artwork-1',
         status: 'LISTED',
       });
-      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
       await service.addArtwork('exhibition-1', ownerUserId, {
         artworkId: 'artwork-1',
