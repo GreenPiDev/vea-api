@@ -35,6 +35,12 @@ export class ExhibitionsController {
     return this.exhibitions.findOwn(user.sub);
   }
 
+  @Get('mine/:id')
+  @UseGuards(JwtAuthGuard)
+  getOneMine(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.exhibitions.findOneOwn(id, user.sub);
+  }
+
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.exhibitions.findOneForView(id);

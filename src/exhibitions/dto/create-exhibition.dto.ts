@@ -1,11 +1,17 @@
+import { Type } from 'class-transformer';
 import {
   IsDateString,
-  IsObject,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import {
+  CustomSceneConfigDto,
+  SCENE_CONFIG_TYPE_OPTIONS,
+  TemplateSceneConfigDto,
+} from './scene-config.dto';
 
 export class CreateExhibitionDto {
   @IsString()
@@ -24,9 +30,10 @@ export class CreateExhibitionDto {
   @IsDateString()
   endDate: string;
 
-  // 3D scene layout data — shape isn't finalized yet (frontend-owned), so it's
-  // stored as an opaque JSON blob rather than modeled field-by-field here.
+  // 3D scene layout data, stored as an opaque JSON column (no migration for
+  // shape changes) but validated as a discriminated union — see scene-config.dto.ts.
   @IsOptional()
-  @IsObject()
-  sceneConfig?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => Object, SCENE_CONFIG_TYPE_OPTIONS)
+  sceneConfig?: TemplateSceneConfigDto | CustomSceneConfigDto;
 }

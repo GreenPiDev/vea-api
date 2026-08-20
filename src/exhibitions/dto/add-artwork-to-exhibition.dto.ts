@@ -1,12 +1,15 @@
-import { IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArtworkPositionDataDto } from './position-data.dto';
 
 export class AddArtworkToExhibitionDto {
   @IsString()
   artworkId: string;
 
   @IsOptional()
-  @IsObject()
-  positionData?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => ArtworkPositionDataDto)
+  positionData?: ArtworkPositionDataDto;
 
   @IsOptional()
   @IsInt()

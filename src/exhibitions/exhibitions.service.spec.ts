@@ -345,4 +345,32 @@ describe('ExhibitionsService', () => {
       ).resolves.toBeDefined();
     });
   });
+
+  describe('findOneOwn', () => {
+    it('returns a DRAFT exhibition for its owner (findOneForView would 404 this)', async () => {
+      prisma.exhibition.findUnique
+        .mockResolvedValueOnce(exhibitionWithStatus('DRAFT')) // assertOwnership
+        .mockResolvedValueOnce({ ...exhibitionWithStatus('DRAFT'), artworkLinks: [] });
+
+      await expect(
+        service.findOneOwn('exhibition-1', ownerUserId),
+      ).resolves.toEqual({ ...exhibitionWithStatus('DRAFT'), artworkLinks: [] });
+    });
+
+    it('rejects a non-owner even for an ACTIVE exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('ACTIVE'),
+      );
+      await expect(
+        service.findOneOwn('exhibition-1', otherUserId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('404s a nonexistent exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.findOneOwn('exhibition-1', ownerUserId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 });

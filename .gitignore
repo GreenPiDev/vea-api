@@ -8,3 +8,6 @@ coverage
 
 # Claude Code internal notes — kept local, not pushed
 CLAUDE.md
+
+# JetBrains IDE settings
+.idea/

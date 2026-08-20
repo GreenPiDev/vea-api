@@ -43,7 +43,7 @@ export class ExhibitionsService {
         description: dto.description,
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
-        sceneConfig: dto.sceneConfig as Prisma.InputJsonValue,
+        sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -65,10 +65,30 @@ export class ExhibitionsService {
     });
   }
 
+  /**
+   * Owner-only full detail (any status, including DRAFT — findOneForView
+   * rejects DRAFT even for the owner, since it's the public-facing read
+   * path). Needed so an artist can place artworks on a wall before ever
+   * publishing, instead of the exhibition having to go live empty first.
+   */
+  async findOneOwn(id: string, userId: string) {
+    await this.assertOwnership(id, userId);
+    return this.prisma.exhibition.findUnique({
+      where: { id },
+      include: {
+        artworkLinks: { include: { artwork: { include: { artistProfile: true } } } },
+      },
+    });
+  }
+
   async findOneForView(id: string) {
     const exhibition = await this.prisma.exhibition.findUnique({
       where: { id },
-      include: { artworkLinks: { include: { artwork: true } } },
+      // artistProfile is included so the 3D scene can render a wall label
+      // (artist display name) without a second round-trip per artwork.
+      include: {
+        artworkLinks: { include: { artwork: { include: { artistProfile: true } } } },
+      },
     });
     if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status)) {
       throw new NotFoundException('Exhibition not found');
@@ -92,7 +112,7 @@ export class ExhibitionsService {
         description: dto.description,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        sceneConfig: dto.sceneConfig as Prisma.InputJsonValue,
+        sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -179,7 +199,7 @@ export class ExhibitionsService {
       data: {
         exhibitionId,
         artworkId: dto.artworkId,
-        positionData: dto.positionData as Prisma.InputJsonValue,
+        positionData: dto.positionData as unknown as Prisma.InputJsonValue,
         order: dto.order,
       },
     });
@@ -196,7 +216,7 @@ export class ExhibitionsService {
     return this.prisma.exhibitionArtwork.update({
       where: { exhibitionId_artworkId: { exhibitionId, artworkId } },
       data: {
-        positionData: dto.positionData as Prisma.InputJsonValue,
+        positionData: dto.positionData as unknown as Prisma.InputJsonValue,
         order: dto.order,
       },
     });
