@@ -17,8 +17,11 @@ import { AddArtworkToExhibitionDto } from './dto/add-artwork-to-exhibition.dto';
 import { UpdateExhibitionArtworkDto } from './dto/update-exhibition-artwork.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { UserRole } from '@prisma/client';
 
 @Controller('exhibitions')
 export class ExhibitionsController {
@@ -30,13 +33,15 @@ export class ExhibitionsController {
   }
 
   @Get('mine')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   listMine(@CurrentUser() user: JwtPayload) {
     return this.exhibitions.findOwn(user.sub);
   }
 
   @Get('mine/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   getOneMine(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.exhibitions.findOneOwn(id, user.sub);
   }
@@ -47,13 +52,15 @@ export class ExhibitionsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateExhibitionDto) {
     return this.exhibitions.create(user.sub, dto);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   update(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -63,7 +70,8 @@ export class ExhibitionsController {
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   setStatus(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -73,13 +81,15 @@ export class ExhibitionsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.exhibitions.remove(id, user.sub);
   }
 
   @Post(':id/artworks')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   addArtwork(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -89,7 +99,8 @@ export class ExhibitionsController {
   }
 
   @Patch(':id/artworks/:artworkId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   updateArtwork(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -100,7 +111,8 @@ export class ExhibitionsController {
   }
 
   @Delete(':id/artworks/:artworkId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   removeArtwork(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

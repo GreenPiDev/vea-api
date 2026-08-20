@@ -35,6 +35,9 @@ export class ArtworksService {
       take: Math.min(take, MAX_PAGE_SIZE),
       skip,
       orderBy: { createdAt: 'desc' },
+      // A curator browsing this list to place artworks into an exhibition
+      // needs to see whose artwork it is (cross-artist curation).
+      include: { artistProfile: true },
     });
   }
 
@@ -43,6 +46,8 @@ export class ArtworksService {
     return this.prisma.artwork.findMany({
       where: { artistProfileId: profile.id },
       orderBy: { createdAt: 'desc' },
+      // Lets the artist see which exhibition(s) an artwork is currently placed in.
+      include: { exhibitionLinks: { include: { exhibition: true } } },
     });
   }
 

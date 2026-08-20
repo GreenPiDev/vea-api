@@ -93,10 +93,11 @@ model User {
   marketingSourceId String?
   createdAt         DateTime @default(now())
 
-  marketingSource   MarketingSource?   @relation(fields: [marketingSourceId], references: [id])
-  artistProfile     ArtistProfile?
-  offers            Offer[]
-  verificationCodes VerificationCode[]
+  marketingSource    MarketingSource?   @relation(fields: [marketingSourceId], references: [id])
+  artistProfile      ArtistProfile?
+  offers             Offer[]
+  verificationCodes  VerificationCode[]
+  curatedExhibitions Exhibition[]
 
   @@index([marketingSourceId])
 }
@@ -130,9 +131,8 @@ model ArtistProfile {
   verified        Boolean  @default(false)
   createdAt       DateTime @default(now())
 
-  user        User         @relation(fields: [userId], references: [id])
-  artworks    Artwork[]
-  exhibitions Exhibition[]
+  user     User      @relation(fields: [userId], references: [id])
+  artworks Artwork[]
 }
 
 model Artwork {
@@ -167,21 +167,21 @@ model Artwork {
 }
 
 model Exhibition {
-  id             String           @id @default(cuid())
-  ownerProfileId String
-  title          String
-  description    String?
-  startDate      DateTime
-  endDate        DateTime
-  status         ExhibitionStatus @default(DRAFT)
-  sceneConfig    Json?
-  createdAt      DateTime         @default(now())
+  id            String           @id @default(cuid())
+  curatorUserId String
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  status        ExhibitionStatus @default(DRAFT)
+  sceneConfig   Json?
+  createdAt     DateTime         @default(now())
 
-  ownerProfile ArtistProfile       @relation(fields: [ownerProfileId], references: [id])
+  curator      User                @relation(fields: [curatorUserId], references: [id])
   artworkLinks ExhibitionArtwork[]
   visitEvents  VisitEvent[]
 
-  @@index([ownerProfileId])
+  @@index([curatorUserId])
   @@index([status])
 }
 

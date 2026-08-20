@@ -56,7 +56,10 @@ describe('AddArtworkToExhibitionDto positionData', () => {
       positionData: { wallRunId: 'wall-north', order: 3 },
     });
 
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
 
     expect(errors.some((e) => e.property === 'positionData')).toBe(true);
   });

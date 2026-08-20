@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { ArtworkPositionDataDto } from './position-data.dto';
 
 export class AddArtworkToExhibitionDto {

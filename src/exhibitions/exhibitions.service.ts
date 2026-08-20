@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { ExhibitionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 import { CreateExhibitionDto } from './dto/create-exhibition.dto';
 import { UpdateExhibitionDto } from './dto/update-exhibition.dto';
 import { AddArtworkToExhibitionDto } from './dto/add-artwork-to-exhibition.dto';
@@ -26,19 +25,15 @@ const ALLOWED_TRANSITIONS: Record<ExhibitionStatus, ExhibitionStatus[]> = {
 
 @Injectable()
 export class ExhibitionsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly artistProfiles: ArtistProfilesService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateExhibitionDto) {
-    const profile = await this.artistProfiles.getOwnOrThrow(userId);
     if (new Date(dto.endDate) <= new Date(dto.startDate)) {
       throw new BadRequestException('endDate must be after startDate');
     }
     return this.prisma.exhibition.create({
       data: {
-        ownerProfileId: profile.id,
+        curatorUserId: userId,
         title: dto.title,
         description: dto.description,
         startDate: new Date(dto.startDate),
@@ -58,9 +53,8 @@ export class ExhibitionsService {
   }
 
   async findOwn(userId: string) {
-    const profile = await this.artistProfiles.getOwnOrThrow(userId);
     return this.prisma.exhibition.findMany({
-      where: { ownerProfileId: profile.id },
+      where: { curatorUserId: userId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -76,7 +70,9 @@ export class ExhibitionsService {
     return this.prisma.exhibition.findUnique({
       where: { id },
       include: {
-        artworkLinks: { include: { artwork: { include: { artistProfile: true } } } },
+        artworkLinks: {
+          include: { artwork: { include: { artistProfile: true } } },
+        },
       },
     });
   }
@@ -87,7 +83,9 @@ export class ExhibitionsService {
       // artistProfile is included so the 3D scene can render a wall label
       // (artist display name) without a second round-trip per artwork.
       include: {
-        artworkLinks: { include: { artwork: { include: { artistProfile: true } } } },
+        artworkLinks: {
+          include: { artwork: { include: { artistProfile: true } } },
+        },
       },
     });
     if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status)) {
@@ -169,16 +167,12 @@ export class ExhibitionsService {
     dto: AddArtworkToExhibitionDto,
   ) {
     await this.assertOwnership(exhibitionId, userId);
+    // Curator role, not artist ownership — a curator places any artist's
+    // artwork into the exhibitions they run (cross-artist curation).
     const artwork = await this.prisma.artwork.findUnique({
       where: { id: dto.artworkId },
-      include: { artistProfile: true },
     });
     if (!artwork) throw new NotFoundException('Artwork not found');
-    if (artwork.artistProfile.userId !== userId) {
-      throw new ForbiddenException(
-        'You can only place your own artworks into your exhibitions',
-      );
-    }
     if (artwork.status === 'ARCHIVED' || artwork.status === 'SOLD') {
       throw new ConflictException(
         `Cannot place a ${artwork.status} artwork into an exhibition`,
@@ -242,10 +236,9 @@ export class ExhibitionsService {
   private async assertOwnership(id: string, userId: string) {
     const exhibition = await this.prisma.exhibition.findUnique({
       where: { id },
-      include: { ownerProfile: true },
     });
     if (!exhibition) throw new NotFoundException('Exhibition not found');
-    if (exhibition.ownerProfile.userId !== userId) {
+    if (exhibition.curatorUserId !== userId) {
       throw new ForbiddenException('You do not own this exhibition');
     }
     return exhibition;

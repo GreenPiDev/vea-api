@@ -1,7 +1,10 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CreateExhibitionDto } from './create-exhibition.dto';
-import { TemplateSceneConfigDto, CustomSceneConfigDto } from './scene-config.dto';
+import {
+  TemplateSceneConfigDto,
+  CustomSceneConfigDto,
+} from './scene-config.dto';
 
 const base = {
   title: 'Test Exhibition',
@@ -50,7 +53,10 @@ describe('CreateExhibitionDto sceneConfig discriminated union', () => {
   it('accepts a custom sceneConfig with optional textureIds', async () => {
     const dto = plainToInstance(CreateExhibitionDto, {
       ...base,
-      sceneConfig: { ...validCustom, textureIds: { floor: 'oak-01', wall: 'plaster-02' } },
+      sceneConfig: {
+        ...validCustom,
+        textureIds: { floor: 'oak-01', wall: 'plaster-02' },
+      },
     });
 
     const errors = await validate(dto);

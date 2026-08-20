@@ -6,12 +6,10 @@ import {
 } from '@nestjs/common';
 import { ExhibitionsService } from './exhibitions.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 
 describe('ExhibitionsService', () => {
   const ownerUserId = 'user-owner';
   const otherUserId = 'user-other';
-  const profile = { id: 'profile-1', userId: ownerUserId };
 
   let prisma: {
     exhibition: {
@@ -34,15 +32,12 @@ describe('ExhibitionsService', () => {
     };
     $transaction: jest.Mock;
   };
-  let artistProfiles: {
-    getOwnOrThrow: jest.Mock<Promise<typeof profile>, [string]>;
-  };
   let service: ExhibitionsService;
 
   const exhibitionWithStatus = (status: string) => ({
     id: 'exhibition-1',
     status,
-    ownerProfile: { userId: ownerUserId },
+    curatorUserId: ownerUserId,
   });
 
   beforeEach(() => {
@@ -77,19 +72,11 @@ describe('ExhibitionsService', () => {
         return Promise.resolve(arg);
       }),
     };
-    artistProfiles = {
-      getOwnOrThrow: jest
-        .fn<Promise<typeof profile>, [string]>()
-        .mockResolvedValue(profile),
-    };
-    service = new ExhibitionsService(
-      prisma as unknown as PrismaService,
-      artistProfiles as unknown as ArtistProfilesService,
-    );
+    service = new ExhibitionsService(prisma as unknown as PrismaService);
   });
 
   describe('create', () => {
-    it('attaches the caller-owned ownerProfileId', async () => {
+    it('attaches the caller as curatorUserId', async () => {
       await service.create(ownerUserId, {
         title: 'Debut',
         startDate: '2026-01-01T00:00:00.000Z',
@@ -97,9 +84,9 @@ describe('ExhibitionsService', () => {
       });
 
       const [args] = prisma.exhibition.create.mock.calls[0] as [
-        { data: { ownerProfileId: string } },
+        { data: { curatorUserId: string } },
       ];
-      expect(args.data.ownerProfileId).toBe(profile.id);
+      expect(args.data.curatorUserId).toBe(ownerUserId);
     });
 
     it('rejects endDate <= startDate', async () => {
@@ -203,21 +190,22 @@ describe('ExhibitionsService', () => {
   });
 
   describe('addArtwork', () => {
-    it('rejects placing an artwork owned by someone else', async () => {
+    it('allows the curator to place an artwork owned by a different artist (cross-artist curation)', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('DRAFT'),
       );
       prisma.artwork.findUnique.mockResolvedValueOnce({
         id: 'artwork-1',
         status: 'LISTED',
-        artistProfile: { userId: otherUserId },
+        artistProfileId: 'profile-of-' + otherUserId,
+      });
+      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+
+      await service.addArtwork('exhibition-1', ownerUserId, {
+        artworkId: 'artwork-1',
       });
 
-      await expect(
-        service.addArtwork('exhibition-1', ownerUserId, {
-          artworkId: 'artwork-1',
-        }),
-      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.exhibitionArtwork.create).toHaveBeenCalled();
     });
 
     it('rejects placing an ARCHIVED artwork', async () => {
@@ -227,7 +215,6 @@ describe('ExhibitionsService', () => {
       prisma.artwork.findUnique.mockResolvedValueOnce({
         id: 'artwork-1',
         status: 'ARCHIVED',
-        artistProfile: { userId: ownerUserId },
       });
 
       await expect(
@@ -244,7 +231,6 @@ describe('ExhibitionsService', () => {
       prisma.artwork.findUnique.mockResolvedValueOnce({
         id: 'artwork-1',
         status: 'LISTED',
-        artistProfile: { userId: ownerUserId },
       });
       prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce({
         exhibitionId: 'exhibition-1',
@@ -257,14 +243,13 @@ describe('ExhibitionsService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('places a valid, owned, LISTED artwork', async () => {
+    it('places a valid, LISTED artwork', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('DRAFT'),
       );
       prisma.artwork.findUnique.mockResolvedValueOnce({
         id: 'artwork-1',
         status: 'LISTED',
-        artistProfile: { userId: ownerUserId },
       });
       prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
 
@@ -350,11 +335,17 @@ describe('ExhibitionsService', () => {
     it('returns a DRAFT exhibition for its owner (findOneForView would 404 this)', async () => {
       prisma.exhibition.findUnique
         .mockResolvedValueOnce(exhibitionWithStatus('DRAFT')) // assertOwnership
-        .mockResolvedValueOnce({ ...exhibitionWithStatus('DRAFT'), artworkLinks: [] });
+        .mockResolvedValueOnce({
+          ...exhibitionWithStatus('DRAFT'),
+          artworkLinks: [],
+        });
 
       await expect(
         service.findOneOwn('exhibition-1', ownerUserId),
-      ).resolves.toEqual({ ...exhibitionWithStatus('DRAFT'), artworkLinks: [] });
+      ).resolves.toEqual({
+        ...exhibitionWithStatus('DRAFT'),
+        artworkLinks: [],
+      });
     });
 
     it('rejects a non-owner even for an ACTIVE exhibition', async () => {
