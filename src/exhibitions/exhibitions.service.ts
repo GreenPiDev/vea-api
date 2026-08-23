@@ -265,6 +265,61 @@ export class ExhibitionsService {
     });
   }
 
+  // Lightweight analytics counter — only checks both ids actually exist, no
+  // ownership/placement-link check. Public, no auth, same "browsing an
+  // exhibition is free" philosophy as the rest of this module; a bit of
+  // spammable inaccuracy here is an acceptable trade-off for a non-critical
+  // view count (unlike Offer/payment paths, which are strict).
+  async recordArtworkView(exhibitionId: string, artworkId: string, sessionId: string) {
+    const [exhibition, artwork] = await Promise.all([
+      this.prisma.exhibition.findUnique({ where: { id: exhibitionId } }),
+      this.prisma.artwork.findUnique({ where: { id: artworkId } }),
+    ]);
+    if (!exhibition) throw new NotFoundException('Exhibition not found');
+    if (!artwork) throw new NotFoundException('Artwork not found');
+
+    await this.prisma.visitEvent.create({
+      data: { exhibitionId, artworkId, sessionId, eventType: 'ARTWORK_VIEW' },
+    });
+    const count = await this.prisma.visitEvent.count({
+      where: { artworkId, eventType: 'ARTWORK_VIEW' },
+    });
+    return { count };
+  }
+
+  // Cumulative (all-time) visitor count — distinct from the live/concurrent
+  // count ExhibitionGateway broadcasts over WebSocket. Both are derived
+  // from the same EXHIBITION_ENTER VisitEvent rows, just aggregated
+  // differently (count of rows ever vs. current room size).
+  async getStatsForOwner(id: string, organizationId: string | null) {
+    await this.assertOwnership(id, organizationId);
+
+    const [totalVisitors, links] = await Promise.all([
+      this.prisma.visitEvent.count({ where: { exhibitionId: id, eventType: 'EXHIBITION_ENTER' } }),
+      this.prisma.exhibitionArtwork.findMany({
+        where: { exhibitionId: id },
+        include: { artwork: { select: { id: true, title: true } } },
+      }),
+    ]);
+
+    const artworkIds = links.map((link) => link.artworkId);
+    const viewCounts = await this.prisma.visitEvent.groupBy({
+      by: ['artworkId'],
+      where: { artworkId: { in: artworkIds }, eventType: 'ARTWORK_VIEW' },
+      _count: { artworkId: true },
+    });
+    const viewCountByArtworkId = new Map(viewCounts.map((v) => [v.artworkId, v._count.artworkId]));
+
+    return {
+      totalVisitors,
+      artworks: links.map((link) => ({
+        artworkId: link.artworkId,
+        title: link.artwork.title,
+        viewCount: viewCountByArtworkId.get(link.artworkId) ?? 0,
+      })),
+    };
+  }
+
   private async assertOwnership(id: string, organizationId: string | null) {
     const exhibition = await this.prisma.exhibition.findUnique({
       where: { id },

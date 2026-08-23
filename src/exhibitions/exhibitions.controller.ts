@@ -15,6 +15,7 @@ import { UpdateExhibitionDto } from './dto/update-exhibition.dto';
 import { SetExhibitionStatusDto } from './dto/set-exhibition-status.dto';
 import { AddArtworkToExhibitionDto } from './dto/add-artwork-to-exhibition.dto';
 import { UpdateExhibitionArtworkDto } from './dto/update-exhibition-artwork.dto';
+import { RecordArtworkViewDto } from './dto/record-artwork-view.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -44,6 +45,13 @@ export class ExhibitionsController {
   @Roles(UserRole.ADMIN)
   getOneMine(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.exhibitions.findOneOwn(id, user.organizationId);
+  }
+
+  @Get('mine/:id/stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  getStats(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.exhibitions.getStatsForOwner(id, user.organizationId);
   }
 
   @Get(':id')
@@ -119,5 +127,17 @@ export class ExhibitionsController {
     @Param('artworkId') artworkId: string,
   ) {
     return this.exhibitions.removeArtwork(id, artworkId, user.organizationId);
+  }
+
+  // Public, no auth — recording that a visitor opened an artwork's info
+  // card, same "browsing is free" philosophy as the rest of this
+  // controller's read paths.
+  @Post(':id/artworks/:artworkId/views')
+  recordArtworkView(
+    @Param('id') id: string,
+    @Param('artworkId') artworkId: string,
+    @Body() dto: RecordArtworkViewDto,
+  ) {
+    return this.exhibitions.recordArtworkView(id, artworkId, dto.sessionId);
   }
 }

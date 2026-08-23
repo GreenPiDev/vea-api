@@ -8,6 +8,11 @@ export const SOCKET_EVENTS = {
   // Client -> Server
   ExhibitionJoin: 'exhibition:join',
   ExhibitionLeave: 'exhibition:leave',
+  // Client -> Server — "watch" a live visitor count without being counted
+  // as a visitor yourself (e.g. the exhibition selector screen showing a
+  // live badge per card). See ExhibitionGateway's watcher room.
+  ExhibitionWatch: 'exhibition:watch',
+  ExhibitionUnwatch: 'exhibition:unwatch',
   // Server -> Client
   ExhibitionVisitorCount: 'exhibition:visitorCount',
   ExhibitionError: 'exhibition:error',

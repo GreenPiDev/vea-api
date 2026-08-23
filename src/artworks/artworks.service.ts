@@ -70,6 +70,58 @@ export class ArtworksService {
     });
   }
 
+  // Per-artwork view counts for the artist's own portfolio, plus (when an
+  // artwork is currently placed) that exhibition's all-time visitor total —
+  // the artist-scoped counterpart to ExhibitionsService.getStatsForOwner,
+  // which gives the admin every artwork in the exhibition. An artist only
+  // ever sees their own artwork's numbers, never another artist's, even
+  // for a show they happen to share (same "don't see things unrelated to
+  // you" boundary as the offers feature).
+  async getStatsForArtist(userId: string) {
+    const profile = await this.artistProfiles.getOwnOrThrow(userId);
+    const artworks = await this.prisma.artwork.findMany({
+      where: { artistProfileId: profile.id },
+      orderBy: { createdAt: 'desc' },
+      include: { exhibitionLinks: { include: { exhibition: true } } },
+    });
+
+    const artworkIds = artworks.map((a) => a.id);
+    const viewCounts = await this.prisma.visitEvent.groupBy({
+      by: ['artworkId'],
+      where: { artworkId: { in: artworkIds }, eventType: 'ARTWORK_VIEW' },
+      _count: { artworkId: true },
+    });
+    const viewCountByArtworkId = new Map(viewCounts.map((v) => [v.artworkId, v._count.artworkId]));
+
+    const exhibitionIds = [
+      ...new Set(artworks.flatMap((a) => a.exhibitionLinks.map((l) => l.exhibitionId))),
+    ];
+    const visitorCounts = await this.prisma.visitEvent.groupBy({
+      by: ['exhibitionId'],
+      where: { exhibitionId: { in: exhibitionIds }, eventType: 'EXHIBITION_ENTER' },
+      _count: { exhibitionId: true },
+    });
+    const visitorCountByExhibitionId = new Map(
+      visitorCounts.map((v) => [v.exhibitionId, v._count.exhibitionId]),
+    );
+
+    return artworks.map((artwork) => {
+      const link = artwork.exhibitionLinks[0];
+      return {
+        artworkId: artwork.id,
+        title: artwork.title,
+        viewCount: viewCountByArtworkId.get(artwork.id) ?? 0,
+        exhibition: link
+          ? {
+              id: link.exhibition.id,
+              title: link.exhibition.title,
+              totalVisitors: visitorCountByExhibitionId.get(link.exhibitionId) ?? 0,
+            }
+          : null,
+      };
+    });
+  }
+
   async findOneForView(id: string) {
     const artwork = await this.prisma.artwork.findUnique({
       where: { id },

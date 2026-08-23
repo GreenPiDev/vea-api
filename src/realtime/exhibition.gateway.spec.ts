@@ -10,7 +10,7 @@ describe('ExhibitionGateway', () => {
   };
   let gateway: ExhibitionGateway;
   let rooms: Map<string, Set<string>>;
-  let emittedTo: { room: string; event: string; payload: unknown }[];
+  let emittedTo: { room: string | string[]; event: string; payload: unknown }[];
 
   function makeClient(id: string) {
     return {
@@ -43,7 +43,7 @@ describe('ExhibitionGateway', () => {
     gateway = new ExhibitionGateway(prisma as unknown as PrismaService);
     gateway.server = {
       sockets: { adapter: { rooms } },
-      to: (room: string) => ({
+      to: (room: string | string[]) => ({
         emit: (event: string, payload: unknown) =>
           emittedTo.push({ room, event, payload }),
       }),
@@ -92,7 +92,7 @@ describe('ExhibitionGateway', () => {
         },
       });
       expect(emittedTo).toContainEqual({
-        room: 'exhibition:exh-1',
+        room: ['exhibition:exh-1', 'exhibition:exh-1:watchers'],
         event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 1 },
       });
@@ -109,7 +109,7 @@ describe('ExhibitionGateway', () => {
       await gateway.handleJoin(asSocket(client2), { exhibitionId: 'exh-1' });
 
       expect(emittedTo.at(-1)).toEqual({
-        room: 'exhibition:exh-1',
+        room: ['exhibition:exh-1', 'exhibition:exh-1:watchers'],
         event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 2 },
       });
@@ -142,7 +142,7 @@ describe('ExhibitionGateway', () => {
 
       expect(client.leave).toHaveBeenCalledWith('exhibition:exh-1');
       expect(emittedTo.at(-1)).toEqual({
-        room: 'exhibition:exh-1',
+        room: ['exhibition:exh-1', 'exhibition:exh-1:watchers'],
         event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 0 },
       });
@@ -160,7 +160,7 @@ describe('ExhibitionGateway', () => {
       gateway.handleDisconnect(asSocket(client));
 
       expect(emittedTo.at(-1)).toEqual({
-        room: 'exhibition:exh-1',
+        room: ['exhibition:exh-1', 'exhibition:exh-1:watchers'],
         event: SOCKET_EVENTS.ExhibitionVisitorCount,
         payload: { exhibitionId: 'exh-1', count: 0 },
       });
@@ -170,6 +170,43 @@ describe('ExhibitionGateway', () => {
       const client = makeClient('sock-1');
       gateway.handleDisconnect(asSocket(client));
       expect(emittedTo).toHaveLength(0);
+    });
+  });
+
+  describe('handleWatch / handleUnwatch', () => {
+    it('joins the watcher room and sends the current count directly to the caller, without counting as a visitor', async () => {
+      // A real visitor is already present.
+      const visitor = makeClient('sock-visitor');
+      prisma.exhibition.findUnique.mockResolvedValue({ id: 'exh-1', status: 'ACTIVE' });
+      await gateway.handleJoin(asSocket(visitor), { exhibitionId: 'exh-1' });
+
+      const watcher = makeClient('sock-watcher');
+      await gateway.handleWatch(asSocket(watcher), { exhibitionId: 'exh-1' });
+
+      expect(watcher.join).toHaveBeenCalledWith('exhibition:exh-1:watchers');
+      expect(watcher.emit).toHaveBeenCalledWith(SOCKET_EVENTS.ExhibitionVisitorCount, {
+        exhibitionId: 'exh-1',
+        count: 1, // the watcher itself must not be counted
+      });
+    });
+
+    it('handleUnwatch leaves the watcher room', async () => {
+      const watcher = makeClient('sock-watcher');
+      await gateway.handleWatch(asSocket(watcher), { exhibitionId: 'exh-1' });
+      await gateway.handleUnwatch(asSocket(watcher), { exhibitionId: 'exh-1' });
+
+      expect(watcher.leave).toHaveBeenCalledWith('exhibition:exh-1:watchers');
+    });
+
+    it('a real visitor join/leave still broadcasts to the watcher room too', async () => {
+      prisma.exhibition.findUnique.mockResolvedValue({ id: 'exh-1', status: 'ACTIVE' });
+      const client = makeClient('sock-1');
+      await gateway.handleJoin(asSocket(client), { exhibitionId: 'exh-1' });
+
+      expect(emittedTo.at(-1)?.room).toEqual([
+        'exhibition:exh-1',
+        'exhibition:exh-1:watchers',
+      ]);
     });
   });
 });

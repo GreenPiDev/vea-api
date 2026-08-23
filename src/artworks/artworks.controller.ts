@@ -37,6 +37,12 @@ export class ArtworksController {
     return this.artworks.findOwn(user.sub);
   }
 
+  @Get('mine/stats')
+  @UseGuards(JwtAuthGuard)
+  getMyStats(@CurrentUser() user: JwtPayload) {
+    return this.artworks.getStatsForArtist(user.sub);
+  }
+
   // Must come before ':id' so "organization" isn't swallowed as an artwork id.
   @Get('organization')
   @UseGuards(JwtAuthGuard, RolesGuard)

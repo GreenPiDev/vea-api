@@ -23,6 +23,14 @@ function roomName(exhibitionId: string): string {
   return `exhibition:${exhibitionId}`;
 }
 
+// A separate room for clients that just want to read the live count (e.g.
+// the exhibition selector screen showing a badge per card) without being
+// counted as an actual visitor themselves — broadcastCount() sends to both
+// rooms, but the count itself is always derived from roomName()'s size only.
+function watcherRoomName(exhibitionId: string): string {
+  return `exhibition:${exhibitionId}:watchers`;
+}
+
 function socketData(client: Socket): SocketData {
   return client.data as SocketData;
 }
@@ -103,6 +111,31 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage(SOCKET_EVENTS.ExhibitionWatch)
+  async handleWatch(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: JoinExhibitionPayload,
+  ): Promise<void> {
+    const exhibitionId = payload?.exhibitionId;
+    if (!exhibitionId) return;
+    await client.join(watcherRoomName(exhibitionId));
+    // Send the current count directly to this client — broadcastCount()
+    // only fires on the next real visitor join/leave, which might not
+    // happen for a while, and a new watcher shouldn't wait for it.
+    const count = this.server.sockets.adapter.rooms.get(roomName(exhibitionId))?.size ?? 0;
+    client.emit(SOCKET_EVENTS.ExhibitionVisitorCount, { exhibitionId, count });
+  }
+
+  @SubscribeMessage(SOCKET_EVENTS.ExhibitionUnwatch)
+  async handleUnwatch(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: JoinExhibitionPayload,
+  ): Promise<void> {
+    if (payload?.exhibitionId) {
+      await client.leave(watcherRoomName(payload.exhibitionId));
+    }
+  }
+
   handleDisconnect(client: Socket): void {
     const exhibitionId = socketData(client).exhibitionId;
     if (exhibitionId) {
@@ -122,7 +155,7 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
     const room = roomName(exhibitionId);
     const count = this.server.sockets.adapter.rooms.get(room)?.size ?? 0;
     this.server
-      .to(room)
+      .to([room, watcherRoomName(exhibitionId)])
       .emit(SOCKET_EVENTS.ExhibitionVisitorCount, { exhibitionId, count });
   }
 }
