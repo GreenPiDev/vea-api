@@ -86,6 +86,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      organizationId: user.organizationId,
     });
     return { accessToken };
   }

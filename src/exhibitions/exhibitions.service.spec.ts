@@ -9,7 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 describe('ExhibitionsService', () => {
   const ownerUserId = 'user-owner';
-  const otherUserId = 'user-other';
+  const ownerOrgId = 'org-owner';
+  // A different ADMIN in a *different* organization — the org-scoped
+  // equivalent of the old "other user" cross-ownership rejection tests.
+  const otherOrgId = 'org-other';
 
   let prisma: {
     exhibition: {
@@ -40,6 +43,7 @@ describe('ExhibitionsService', () => {
     id: 'exhibition-1',
     status,
     curatorUserId: ownerUserId,
+    organizationId: ownerOrgId,
     maxArtworks,
   });
 
@@ -81,27 +85,38 @@ describe('ExhibitionsService', () => {
   });
 
   describe('create', () => {
-    it('attaches the caller as curatorUserId', async () => {
-      await service.create(ownerUserId, {
+    it('attaches the caller as curatorUserId and their organizationId', async () => {
+      await service.create(ownerUserId, ownerOrgId, {
         title: 'Debut',
         startDate: '2026-01-01T00:00:00.000Z',
         endDate: '2026-01-15T00:00:00.000Z',
       });
 
       const [args] = prisma.exhibition.create.mock.calls[0] as [
-        { data: { curatorUserId: string } },
+        { data: { curatorUserId: string; organizationId: string } },
       ];
       expect(args.data.curatorUserId).toBe(ownerUserId);
+      expect(args.data.organizationId).toBe(ownerOrgId);
     });
 
     it('rejects endDate <= startDate', async () => {
       await expect(
-        service.create(ownerUserId, {
+        service.create(ownerUserId, ownerOrgId, {
           title: 'Debut',
           startDate: '2026-01-15T00:00:00.000Z',
           endDate: '2026-01-01T00:00:00.000Z',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects an admin with no organization', async () => {
+      await expect(
+        service.create(ownerUserId, null, {
+          title: 'Debut',
+          startDate: '2026-01-01T00:00:00.000Z',
+          endDate: '2026-01-15T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -111,7 +126,7 @@ describe('ExhibitionsService', () => {
         exhibitionWithStatus('DRAFT'),
       );
 
-      await service.setStatus('exhibition-1', ownerUserId, 'ACTIVE');
+      await service.setStatus('exhibition-1', ownerOrgId, 'ACTIVE');
 
       expect(prisma.artwork.updateMany).toHaveBeenCalledWith({
         where: {
@@ -131,7 +146,7 @@ describe('ExhibitionsService', () => {
         exhibitionWithStatus('ACTIVE'),
       );
 
-      await service.setStatus('exhibition-1', ownerUserId, 'ENDED');
+      await service.setStatus('exhibition-1', ownerOrgId, 'ENDED');
 
       expect(prisma.artwork.updateMany).toHaveBeenCalledWith({
         where: {
@@ -147,7 +162,7 @@ describe('ExhibitionsService', () => {
         exhibitionWithStatus('DRAFT'),
       );
       await expect(
-        service.setStatus('exhibition-1', ownerUserId, 'ENDED'),
+        service.setStatus('exhibition-1', ownerOrgId, 'ENDED'),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -156,7 +171,7 @@ describe('ExhibitionsService', () => {
         exhibitionWithStatus('ENDED'),
       );
       await expect(
-        service.setStatus('exhibition-1', ownerUserId, 'ACTIVE'),
+        service.setStatus('exhibition-1', ownerOrgId, 'ACTIVE'),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -165,7 +180,7 @@ describe('ExhibitionsService', () => {
         exhibitionWithStatus('DRAFT'),
       );
       await expect(
-        service.setStatus('exhibition-1', otherUserId, 'ACTIVE'),
+        service.setStatus('exhibition-1', otherOrgId, 'ACTIVE'),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -175,7 +190,7 @@ describe('ExhibitionsService', () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('DRAFT'),
       );
-      await service.remove('exhibition-1', ownerUserId);
+      await service.remove('exhibition-1', ownerOrgId);
       expect(prisma.exhibitionArtwork.deleteMany).toHaveBeenCalledWith({
         where: { exhibitionId: 'exhibition-1' },
       });
@@ -188,7 +203,7 @@ describe('ExhibitionsService', () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('ACTIVE'),
       );
-      await expect(service.remove('exhibition-1', ownerUserId)).rejects.toThrow(
+      await expect(service.remove('exhibition-1', ownerOrgId)).rejects.toThrow(
         ConflictException,
       );
     });
@@ -202,11 +217,11 @@ describe('ExhibitionsService', () => {
       prisma.artwork.findUnique.mockResolvedValueOnce({
         id: 'artwork-1',
         status: 'LISTED',
-        artistProfileId: 'profile-of-' + otherUserId,
+        artistProfileId: 'profile-of-a-different-artist',
       });
       prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
-      await service.addArtwork('exhibition-1', ownerUserId, {
+      await service.addArtwork('exhibition-1', ownerOrgId, {
         artworkId: 'artwork-1',
       });
 
@@ -223,7 +238,7 @@ describe('ExhibitionsService', () => {
       });
 
       await expect(
-        service.addArtwork('exhibition-1', ownerUserId, {
+        service.addArtwork('exhibition-1', ownerOrgId, {
           artworkId: 'artwork-1',
         }),
       ).rejects.toThrow(ConflictException);
@@ -242,7 +257,7 @@ describe('ExhibitionsService', () => {
       });
 
       await expect(
-        service.addArtwork('exhibition-1', ownerUserId, {
+        service.addArtwork('exhibition-1', ownerOrgId, {
           artworkId: 'artwork-1',
         }),
       ).rejects.toThrow(ConflictException);
@@ -261,7 +276,7 @@ describe('ExhibitionsService', () => {
       });
 
       await expect(
-        service.addArtwork('exhibition-1', ownerUserId, {
+        service.addArtwork('exhibition-1', ownerOrgId, {
           artworkId: 'artwork-1',
         }),
       ).rejects.toThrow(ConflictException);
@@ -278,7 +293,7 @@ describe('ExhibitionsService', () => {
       });
       prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
-      await service.addArtwork('exhibition-1', ownerUserId, {
+      await service.addArtwork('exhibition-1', ownerOrgId, {
         artworkId: 'artwork-1',
         order: 2,
       });
@@ -304,7 +319,7 @@ describe('ExhibitionsService', () => {
       prisma.exhibitionArtwork.count.mockResolvedValueOnce(2);
 
       await expect(
-        service.addArtwork('exhibition-1', ownerUserId, {
+        service.addArtwork('exhibition-1', ownerOrgId, {
           artworkId: 'artwork-1',
         }),
       ).rejects.toThrow(ConflictException);
@@ -322,7 +337,7 @@ describe('ExhibitionsService', () => {
       prisma.exhibitionArtwork.count.mockResolvedValueOnce(1);
       prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
-      await service.addArtwork('exhibition-1', ownerUserId, {
+      await service.addArtwork('exhibition-1', ownerOrgId, {
         artworkId: 'artwork-1',
       });
 
@@ -339,7 +354,7 @@ describe('ExhibitionsService', () => {
       });
       prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce(null);
 
-      await service.addArtwork('exhibition-1', ownerUserId, {
+      await service.addArtwork('exhibition-1', ownerOrgId, {
         artworkId: 'artwork-1',
       });
 
@@ -357,7 +372,7 @@ describe('ExhibitionsService', () => {
         exhibitionId: 'exhibition-1',
       });
 
-      await service.removeArtwork('exhibition-1', 'artwork-1', ownerUserId);
+      await service.removeArtwork('exhibition-1', 'artwork-1', ownerOrgId);
 
       expect(prisma.artwork.updateMany).toHaveBeenCalledWith({
         where: { id: 'artwork-1', status: 'IN_EXHIBITION' },
@@ -373,7 +388,7 @@ describe('ExhibitionsService', () => {
         exhibitionId: 'exhibition-1',
       });
 
-      await service.removeArtwork('exhibition-1', 'artwork-1', ownerUserId);
+      await service.removeArtwork('exhibition-1', 'artwork-1', ownerOrgId);
 
       expect(prisma.artwork.updateMany).not.toHaveBeenCalled();
     });
@@ -385,7 +400,7 @@ describe('ExhibitionsService', () => {
       prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
 
       await expect(
-        service.removeArtwork('exhibition-1', 'artwork-1', ownerUserId),
+        service.removeArtwork('exhibition-1', 'artwork-1', ownerOrgId),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -420,7 +435,7 @@ describe('ExhibitionsService', () => {
         });
 
       await expect(
-        service.findOneOwn('exhibition-1', ownerUserId),
+        service.findOneOwn('exhibition-1', ownerOrgId),
       ).resolves.toEqual({
         ...exhibitionWithStatus('DRAFT'),
         artworkLinks: [],
@@ -432,14 +447,14 @@ describe('ExhibitionsService', () => {
         exhibitionWithStatus('ACTIVE'),
       );
       await expect(
-        service.findOneOwn('exhibition-1', otherUserId),
+        service.findOneOwn('exhibition-1', otherOrgId),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('404s a nonexistent exhibition', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(null);
       await expect(
-        service.findOneOwn('exhibition-1', ownerUserId),
+        service.findOneOwn('exhibition-1', ownerOrgId),
       ).rejects.toThrow(NotFoundException);
     });
   });

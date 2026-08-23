@@ -13,6 +13,7 @@ enum UserRole {
   ARTIST
   INSTITUTION
   ADMIN
+  SUPERADMIN
 }
 
 enum ArtworkCategory {
@@ -84,15 +85,31 @@ model MarketingSource {
   users User[]
 }
 
+// A single firm's shared workspace. Only ADMIN users belong to one — every
+// ADMIN in the same Organization manages the same pool of exhibitions (see
+// Exhibition.organizationId below); VISITOR/ARTIST/SUPERADMIN never have one.
+// SUPERADMIN is platform-level (us, the vendor), not scoped to any org — it
+// creates Organizations and assigns ADMIN users to them.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  admins      User[]
+  exhibitions Exhibition[]
+}
+
 model User {
   id                String   @id @default(cuid())
   email             String   @unique
   phone             String?  @unique
   name              String?
   role              UserRole @default(VISITOR)
+  organizationId    String?
   marketingSourceId String?
   createdAt         DateTime @default(now())
 
+  organization       Organization?      @relation(fields: [organizationId], references: [id])
   marketingSource    MarketingSource?   @relation(fields: [marketingSourceId], references: [id])
   artistProfile      ArtistProfile?
   offers             Offer[]
@@ -100,6 +117,7 @@ model User {
   curatedExhibitions Exhibition[]
 
   @@index([marketingSourceId])
+  @@index([organizationId])
 }
 
 enum VerificationChannel {
@@ -167,22 +185,29 @@ model Artwork {
 }
 
 model Exhibition {
-  id            String           @id @default(cuid())
-  curatorUserId String
-  title         String
-  description   String?
-  startDate     DateTime
-  endDate       DateTime
-  status        ExhibitionStatus @default(DRAFT)
-  sceneConfig   Json?
-  maxArtworks   Int?
-  createdAt     DateTime         @default(now())
+  id             String           @id @default(cuid())
+  // Who literally clicked "create" — audit trail only. Management access
+  // (GET /exhibitions/mine, update/status/delete/artwork placement) is
+  // gated by organizationId below, not this field, so any ADMIN in the
+  // same Organization can manage an exhibition regardless of who made it.
+  curatorUserId  String
+  organizationId String?
+  title          String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime
+  status         ExhibitionStatus @default(DRAFT)
+  sceneConfig    Json?
+  maxArtworks    Int?
+  createdAt      DateTime         @default(now())
 
   curator      User                @relation(fields: [curatorUserId], references: [id])
+  organization Organization?       @relation(fields: [organizationId], references: [id])
   artworkLinks ExhibitionArtwork[]
   visitEvents  VisitEvent[]
 
   @@index([curatorUserId])
+  @@index([organizationId])
   @@index([status])
 }
 

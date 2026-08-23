@@ -27,13 +27,20 @@ const ALLOWED_TRANSITIONS: Record<ExhibitionStatus, ExhibitionStatus[]> = {
 export class ExhibitionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, dto: CreateExhibitionDto) {
+  async create(userId: string, organizationId: string | null, dto: CreateExhibitionDto) {
+    // Defensive only — in practice an ADMIN always has an organizationId,
+    // since the only way to become ADMIN is via OrganizationsService.addAdmin,
+    // which sets both fields together.
+    if (!organizationId) {
+      throw new ForbiddenException('This admin is not assigned to an organization');
+    }
     if (new Date(dto.endDate) <= new Date(dto.startDate)) {
       throw new BadRequestException('endDate must be after startDate');
     }
     return this.prisma.exhibition.create({
       data: {
         curatorUserId: userId,
+        organizationId,
         title: dto.title,
         description: dto.description,
         startDate: new Date(dto.startDate),
@@ -53,9 +60,16 @@ export class ExhibitionsService {
     });
   }
 
-  async findOwn(userId: string) {
+  // Every ADMIN in the same Organization shares this list — it's keyed by
+  // organizationId, not the individual curatorUserId, so two admin-curators
+  // at the same firm see and can manage each other's exhibitions. An ADMIN
+  // with no organizationId (shouldn't happen in practice) sees an empty
+  // list rather than every org's exhibitions or every organizationId:null
+  // orphan row.
+  async findOwn(organizationId: string | null) {
+    if (!organizationId) return [];
     return this.prisma.exhibition.findMany({
-      where: { curatorUserId: userId },
+      where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -66,8 +80,8 @@ export class ExhibitionsService {
    * path). Needed so an artist can place artworks on a wall before ever
    * publishing, instead of the exhibition having to go live empty first.
    */
-  async findOneOwn(id: string, userId: string) {
-    await this.assertOwnership(id, userId);
+  async findOneOwn(id: string, organizationId: string | null) {
+    await this.assertOwnership(id, organizationId);
     return this.prisma.exhibition.findUnique({
       where: { id },
       include: {
@@ -95,8 +109,8 @@ export class ExhibitionsService {
     return exhibition;
   }
 
-  async update(id: string, userId: string, dto: UpdateExhibitionDto) {
-    await this.assertOwnership(id, userId);
+  async update(id: string, organizationId: string | null, dto: UpdateExhibitionDto) {
+    await this.assertOwnership(id, organizationId);
     if (
       dto.startDate &&
       dto.endDate &&
@@ -117,8 +131,8 @@ export class ExhibitionsService {
     });
   }
 
-  async setStatus(id: string, userId: string, status: ExhibitionStatus) {
-    const exhibition = await this.assertOwnership(id, userId);
+  async setStatus(id: string, organizationId: string | null, status: ExhibitionStatus) {
+    const exhibition = await this.assertOwnership(id, organizationId);
     if (!ALLOWED_TRANSITIONS[exhibition.status].includes(status)) {
       throw new ConflictException(
         `Cannot move exhibition from ${exhibition.status} to ${status}`,
@@ -150,8 +164,8 @@ export class ExhibitionsService {
     });
   }
 
-  async remove(id: string, userId: string) {
-    const exhibition = await this.assertOwnership(id, userId);
+  async remove(id: string, organizationId: string | null) {
+    const exhibition = await this.assertOwnership(id, organizationId);
     if (exhibition.status !== 'DRAFT') {
       throw new ConflictException(
         'Only a DRAFT exhibition can be deleted; it is a historical record once ACTIVE/ENDED',
@@ -165,10 +179,10 @@ export class ExhibitionsService {
 
   async addArtwork(
     exhibitionId: string,
-    userId: string,
+    organizationId: string | null,
     dto: AddArtworkToExhibitionDto,
   ) {
-    const exhibition = await this.assertOwnership(exhibitionId, userId);
+    const exhibition = await this.assertOwnership(exhibitionId, organizationId);
     // Curator role, not artist ownership — a curator places any artist's
     // artwork into the exhibitions they run (cross-artist curation).
     const artwork = await this.prisma.artwork.findUnique({
@@ -220,10 +234,10 @@ export class ExhibitionsService {
   async updateArtworkLink(
     exhibitionId: string,
     artworkId: string,
-    userId: string,
+    organizationId: string | null,
     dto: UpdateExhibitionArtworkDto,
   ) {
-    await this.assertOwnership(exhibitionId, userId);
+    await this.assertOwnership(exhibitionId, organizationId);
     await this.assertLinkExists(exhibitionId, artworkId);
     return this.prisma.exhibitionArtwork.update({
       where: { exhibitionId_artworkId: { exhibitionId, artworkId } },
@@ -234,8 +248,8 @@ export class ExhibitionsService {
     });
   }
 
-  async removeArtwork(exhibitionId: string, artworkId: string, userId: string) {
-    const exhibition = await this.assertOwnership(exhibitionId, userId);
+  async removeArtwork(exhibitionId: string, artworkId: string, organizationId: string | null) {
+    const exhibition = await this.assertOwnership(exhibitionId, organizationId);
     await this.assertLinkExists(exhibitionId, artworkId);
 
     await this.prisma.$transaction(async (tx) => {
@@ -251,13 +265,18 @@ export class ExhibitionsService {
     });
   }
 
-  private async assertOwnership(id: string, userId: string) {
+  private async assertOwnership(id: string, organizationId: string | null) {
     const exhibition = await this.prisma.exhibition.findUnique({
       where: { id },
     });
     if (!exhibition) throw new NotFoundException('Exhibition not found');
-    if (exhibition.curatorUserId !== userId) {
-      throw new ForbiddenException('You do not own this exhibition');
+    // organizationId===null never matches, even against a legacy/orphan
+    // exhibition row whose own organizationId also happens to be null — an
+    // admin with no organization must never be treated as owning anything.
+    if (!organizationId || exhibition.organizationId !== organizationId) {
+      throw new ForbiddenException(
+        'This exhibition does not belong to your organization',
+      );
     }
     return exhibition;
   }

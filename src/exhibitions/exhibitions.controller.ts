@@ -36,14 +36,14 @@ export class ExhibitionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   listMine(@CurrentUser() user: JwtPayload) {
-    return this.exhibitions.findOwn(user.sub);
+    return this.exhibitions.findOwn(user.organizationId);
   }
 
   @Get('mine/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   getOneMine(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.exhibitions.findOneOwn(id, user.sub);
+    return this.exhibitions.findOneOwn(id, user.organizationId);
   }
 
   @Get(':id')
@@ -55,7 +55,7 @@ export class ExhibitionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateExhibitionDto) {
-    return this.exhibitions.create(user.sub, dto);
+    return this.exhibitions.create(user.sub, user.organizationId, dto);
   }
 
   @Patch(':id')
@@ -66,7 +66,7 @@ export class ExhibitionsController {
     @Param('id') id: string,
     @Body() dto: UpdateExhibitionDto,
   ) {
-    return this.exhibitions.update(id, user.sub, dto);
+    return this.exhibitions.update(id, user.organizationId, dto);
   }
 
   @Patch(':id/status')
@@ -77,14 +77,14 @@ export class ExhibitionsController {
     @Param('id') id: string,
     @Body() dto: SetExhibitionStatusDto,
   ) {
-    return this.exhibitions.setStatus(id, user.sub, dto.status);
+    return this.exhibitions.setStatus(id, user.organizationId, dto.status);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.exhibitions.remove(id, user.sub);
+    return this.exhibitions.remove(id, user.organizationId);
   }
 
   @Post(':id/artworks')
@@ -95,7 +95,7 @@ export class ExhibitionsController {
     @Param('id') id: string,
     @Body() dto: AddArtworkToExhibitionDto,
   ) {
-    return this.exhibitions.addArtwork(id, user.sub, dto);
+    return this.exhibitions.addArtwork(id, user.organizationId, dto);
   }
 
   @Patch(':id/artworks/:artworkId')
@@ -107,7 +107,7 @@ export class ExhibitionsController {
     @Param('artworkId') artworkId: string,
     @Body() dto: UpdateExhibitionArtworkDto,
   ) {
-    return this.exhibitions.updateArtworkLink(id, artworkId, user.sub, dto);
+    return this.exhibitions.updateArtworkLink(id, artworkId, user.organizationId, dto);
   }
 
   @Delete(':id/artworks/:artworkId')
@@ -118,6 +118,6 @@ export class ExhibitionsController {
     @Param('id') id: string,
     @Param('artworkId') artworkId: string,
   ) {
-    return this.exhibitions.removeArtwork(id, artworkId, user.sub);
+    return this.exhibitions.removeArtwork(id, artworkId, user.organizationId);
   }
 }

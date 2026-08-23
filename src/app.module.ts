@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ArtistProfilesModule } from './artist-profiles/artist-profiles.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 import { ArtworksModule } from './artworks/artworks.module';
 import { ExhibitionsModule } from './exhibitions/exhibitions.module';
 import { OffersModule } from './offers/offers.module';
@@ -29,6 +30,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     UsersModule,
     AuthModule,
     ArtistProfilesModule,
+    OrganizationsModule,
     ArtworksModule,
     ExhibitionsModule,
     OffersModule,
