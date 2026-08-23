@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -9,12 +10,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { ArtworksService } from './artworks.service';
 import { CreateArtworkDto } from './dto/create-artwork.dto';
 import { UpdateArtworkDto } from './dto/update-artwork.dto';
 import { SetArtworkStatusDto } from './dto/set-artwork-status.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
 
@@ -31,6 +35,17 @@ export class ArtworksController {
   @UseGuards(JwtAuthGuard)
   listMine(@CurrentUser() user: JwtPayload) {
     return this.artworks.findOwn(user.sub);
+  }
+
+  // Must come before ':id' so "organization" isn't swallowed as an artwork id.
+  @Get('organization')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  listMyOrganizationArtworks(@CurrentUser() user: JwtPayload, @Query() query: PaginationQueryDto) {
+    if (!user.organizationId) {
+      throw new ForbiddenException('This admin is not assigned to an organization');
+    }
+    return this.artworks.findByOrganization(user.organizationId, query.take, query.skip);
   }
 
   @Get(':id')

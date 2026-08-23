@@ -36,6 +36,17 @@ export class UsersService {
     });
   }
 
+  // Same shape as setAdminForOrganization — a curator invites an artist
+  // into their own org's roster this way; self-serve "become an artist"
+  // no longer exists (see ArtistProfilesController's ARTIST role guard).
+  setArtistForOrganization(email: string, organizationId: string) {
+    return this.prisma.user.upsert({
+      where: { email },
+      update: { role: UserRole.ARTIST, organizationId },
+      create: { email, role: UserRole.ARTIST, organizationId },
+    });
+  }
+
   async removeFromOrganization(userId: string, organizationId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');

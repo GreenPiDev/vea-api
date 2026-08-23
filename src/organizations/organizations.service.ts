@@ -45,4 +45,27 @@ export class OrganizationsService {
     await this.assertExists(organizationId);
     return this.users.removeFromOrganization(userId, organizationId);
   }
+
+  // Curator-facing roster management — an ADMIN invites/removes artists
+  // for their own org (organizationId comes from the caller's JWT, see
+  // OrganizationsController's "mine/artists" routes), unlike the admins
+  // sub-resource above which is SUPERADMIN-only with an explicit :id.
+  async listArtists(organizationId: string) {
+    await this.assertExists(organizationId);
+    return this.prisma.user.findMany({
+      where: { organizationId, role: UserRole.ARTIST },
+      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addArtist(organizationId: string, email: string) {
+    await this.assertExists(organizationId);
+    return this.users.setArtistForOrganization(email, organizationId);
+  }
+
+  async removeArtist(organizationId: string, userId: string) {
+    await this.assertExists(organizationId);
+    return this.users.removeFromOrganization(userId, organizationId);
+  }
 }

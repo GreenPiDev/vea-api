@@ -74,6 +74,7 @@ export class OffersService {
   findMineAsBuyer(userId: string) {
     return this.prisma.offer.findMany({
       where: { buyerId: userId },
+      include: { artwork: true },
       orderBy: { createdAt: 'desc' },
     });
   }

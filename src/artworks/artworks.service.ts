@@ -41,6 +41,25 @@ export class ArtworksService {
     });
   }
 
+  // The curator's actual placement picker (ExhibitionArtworkPlacement.tsx)
+  // uses this, not findPublic — artists now belong to an Organization
+  // (invited by a curator, see OrganizationsService.addArtist), so a
+  // curator should only be offered their own org's roster, not every
+  // artist on the platform. findPublic stays fully open for a possible
+  // future general "browse all art" page.
+  findByOrganization(organizationId: string, take = DEFAULT_PAGE_SIZE, skip = 0) {
+    return this.prisma.artwork.findMany({
+      where: {
+        status: { in: PUBLIC_STATUSES },
+        artistProfile: { user: { organizationId } },
+      },
+      take: Math.min(take, MAX_PAGE_SIZE),
+      skip,
+      orderBy: { createdAt: 'desc' },
+      include: { artistProfile: true },
+    });
+  }
+
   async findOwn(userId: string) {
     const profile = await this.artistProfiles.getOwnOrThrow(userId);
     return this.prisma.artwork.findMany({
