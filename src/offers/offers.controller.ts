@@ -1,15 +1,20 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { SetArtistDecisionDto } from './dto/set-artist-decision.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
 
@@ -35,6 +40,26 @@ export class OffersController {
   @Get('offers/mine/selling')
   listMineAsSeller(@CurrentUser() user: JwtPayload) {
     return this.offers.findMineAsSeller(user.sub);
+  }
+
+  // Must come before 'offers/:id' so "organization" isn't swallowed as an offer id.
+  @Get('offers/organization')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  listOrganizationOffers(@CurrentUser() user: JwtPayload) {
+    if (!user.organizationId) {
+      throw new ForbiddenException('This admin is not assigned to an organization');
+    }
+    return this.offers.findByOrganization(user.organizationId);
+  }
+
+  @Patch('offers/:id/artist-decision')
+  setArtistDecision(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SetArtistDecisionDto,
+  ) {
+    return this.offers.setArtistDecision(id, user.sub, dto.decision);
   }
 
   @Get('offers/:id')

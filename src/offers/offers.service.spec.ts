@@ -6,17 +6,20 @@ import {
 import { OffersService } from './offers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentService } from '../payments/payment.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('OffersService', () => {
   const buyerId = 'user-buyer';
   const sellerId = 'user-seller';
   const otherId = 'user-other';
+  const orgId = 'org-1';
 
   const artwork = (status = 'LISTED') => ({
     id: 'artwork-1',
+    title: 'Test Artwork',
     currency: 'TRY',
     status,
-    artistProfile: { userId: sellerId },
+    artistProfile: { userId: sellerId, user: { organizationId: orgId } },
   });
 
   const offerWithStatus = (
@@ -52,6 +55,10 @@ describe('OffersService', () => {
       findUnique: jest.Mock<Promise<unknown>, [unknown]>;
       update: jest.Mock<Promise<unknown>, [unknown]>;
     };
+    user: {
+      findMany: jest.Mock<Promise<unknown>, [unknown]>;
+      findUniqueOrThrow: jest.Mock<Promise<unknown>, [unknown]>;
+    };
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
@@ -61,6 +68,10 @@ describe('OffersService', () => {
       [string, number, string]
     >;
     releaseFunds: jest.Mock<Promise<void>, [string]>;
+  };
+  let notifications: {
+    create: jest.Mock<Promise<unknown>, [string, string, object]>;
+    createForMany: jest.Mock<Promise<unknown>, [string[], string, object]>;
   };
   let service: OffersService;
 
@@ -88,6 +99,12 @@ describe('OffersService', () => {
         findUnique: jest.fn<Promise<unknown>, [unknown]>(),
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
+      user: {
+        findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
+        findUniqueOrThrow: jest
+          .fn<Promise<unknown>, [unknown]>()
+          .mockResolvedValue({ id: sellerId, organizationId: orgId }),
+      },
       $queryRaw: jest.fn().mockResolvedValue(undefined),
       $transaction: jest.fn((arg: unknown) => {
         if (typeof arg === 'function')
@@ -106,9 +123,18 @@ describe('OffersService', () => {
         .fn<Promise<void>, [string]>()
         .mockResolvedValue(undefined),
     };
+    notifications = {
+      create: jest
+        .fn<Promise<unknown>, [string, string, object]>()
+        .mockResolvedValue({}),
+      createForMany: jest
+        .fn<Promise<unknown>, [string[], string, object]>()
+        .mockResolvedValue(undefined),
+    };
     service = new OffersService(
       prisma as unknown as PrismaService,
       payments as unknown as PaymentService,
+      notifications as unknown as NotificationsService,
     );
   });
 
@@ -121,6 +147,27 @@ describe('OffersService', () => {
         { data: { currency: string } },
       ];
       expect(args.data.currency).toBe('TRY');
+    });
+
+    it('notifies the artist and their org admins, never the buyer identity', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(artwork('LISTED'));
+      prisma.offer.create.mockResolvedValueOnce({
+        id: 'offer-1',
+        amount: 50_000,
+        currency: 'TRY',
+      });
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'admin-1' },
+        { id: 'admin-2' },
+      ]);
+
+      await service.create(buyerId, 'artwork-1', { amount: 50_000 });
+
+      expect(notifications.createForMany).toHaveBeenCalledWith(
+        [sellerId, 'admin-1', 'admin-2'],
+        'OFFER_CREATED',
+        expect.objectContaining({ artworkId: 'artwork-1', amount: 50_000 }) as object,
+      );
     });
 
     it('rejects an offer on your own artwork', async () => {
@@ -310,6 +357,65 @@ describe('OffersService', () => {
       await expect(
         service.findOneForParticipant('offer-1', sellerId),
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe('setArtistDecision', () => {
+    it('records the decision and notifies the buyer + org admins', async () => {
+      prisma.offer.findUniqueOrThrow.mockResolvedValueOnce(
+        offerWithStatus('PENDING'),
+      );
+      prisma.user.findMany.mockResolvedValueOnce([{ id: 'admin-1' }]);
+
+      await service.setArtistDecision('offer-1', sellerId, 'APPROVED');
+
+      expect(prisma.offer.update).toHaveBeenCalledWith({
+        where: { id: 'offer-1' },
+        data: { artistDecision: 'APPROVED' },
+      });
+      expect(notifications.createForMany).toHaveBeenCalledWith(
+        [buyerId, 'admin-1'],
+        'OFFER_DECISION',
+        expect.objectContaining({ decision: 'APPROVED' }) as object,
+      );
+    });
+
+    it('rejects a non-seller', async () => {
+      prisma.offer.findUniqueOrThrow.mockResolvedValueOnce(
+        offerWithStatus('PENDING'),
+      );
+      await expect(
+        service.setArtistDecision('offer-1', otherId, 'APPROVED'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects a second decision on the same offer (one-time, irreversible)', async () => {
+      prisma.offer.findUniqueOrThrow.mockResolvedValueOnce(
+        offerWithStatus('PENDING', { artistDecision: 'REJECTED' }),
+      );
+      await expect(
+        service.setArtistDecision('offer-1', sellerId, 'APPROVED'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects a decision once the offer is no longer PENDING', async () => {
+      prisma.offer.findUniqueOrThrow.mockResolvedValueOnce(
+        offerWithStatus('ACCEPTED'),
+      );
+      await expect(
+        service.setArtistDecision('offer-1', sellerId, 'APPROVED'),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('findByOrganization', () => {
+    it('queries offers scoped to the organization', async () => {
+      await service.findByOrganization(orgId);
+      expect(prisma.offer.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { artwork: { artistProfile: { user: { organizationId: orgId } } } },
+        }) as object,
+      );
     });
   });
 });

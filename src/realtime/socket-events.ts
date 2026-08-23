@@ -11,6 +11,9 @@ export const SOCKET_EVENTS = {
   // Server -> Client
   ExhibitionVisitorCount: 'exhibition:visitorCount',
   ExhibitionError: 'exhibition:error',
+  // Server -> Client — pushed to a specific authenticated user's
+  // `user:<id>` room (see NotificationsGateway), not an exhibition room.
+  NotificationCreated: 'notification:created',
 } as const;
 
 export type SocketEventName =

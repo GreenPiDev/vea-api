@@ -60,6 +60,11 @@ enum OfferStatus {
   CANCELLED
 }
 
+enum ArtistDecision {
+  APPROVED
+  REJECTED
+}
+
 enum TransactionStatus {
   PENDING
   HELD
@@ -115,9 +120,31 @@ model User {
   offers             Offer[]
   verificationCodes  VerificationCode[]
   curatedExhibitions Exhibition[]
+  notifications      Notification[]
 
   @@index([marketingSourceId])
   @@index([organizationId])
+}
+
+// Generic, reusable notification record — not offer-specific. `type` is an
+// open-ended string (same reasoning as Artwork.currency: the set of event
+// types will keep growing as new features add notifications, and a Prisma
+// enum would need a migration every time). `payload` carries whatever
+// structured data the frontend needs to render a translated message — the
+// backend never stores a pre-rendered string (this app has no hardcoded
+// UI text anywhere, see vea-frontend/CLAUDE.md's i18n rule).
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 enum VerificationChannel {
@@ -226,15 +253,21 @@ model ExhibitionArtwork {
 }
 
 model Offer {
-  id                  String      @id @default(cuid())
+  id                  String          @id @default(cuid())
   artworkId           String
   buyerId             String
   amount              Int
   currency            String
-  status              OfferStatus @default(PENDING)
+  status              OfferStatus     @default(PENDING)
+  // Informal, artist-facing signal — entirely separate from `status` above.
+  // Setting this never touches the real accept/pay/deliver/release state
+  // machine or PaymentService; it only lets the artist register a one-time,
+  // irreversible preference that the org's admins can see. Null = no
+  // decision yet.
+  artistDecision      ArtistDecision?
   commissionAmount    Int?
   commissionTaxAmount Int?
-  createdAt           DateTime    @default(now())
+  createdAt           DateTime        @default(now())
   respondedAt         DateTime?
 
   artwork     Artwork      @relation(fields: [artworkId], references: [id])

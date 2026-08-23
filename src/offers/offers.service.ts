@@ -4,11 +4,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OfferStatus } from '@prisma/client';
+import { ArtistDecision, OfferStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentService } from '../payments/payment.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { calculateCommission } from './commission';
+
+// Event types this service pushes through NotificationsService — plain
+// strings (see Notification model's comment for why), collected here so
+// they're not duplicated across the create()/setArtistDecision() call sites.
+const NOTIFICATION_TYPES = {
+  OfferCreated: 'OFFER_CREATED',
+  OfferDecision: 'OFFER_DECISION',
+} as const;
 
 // Forward-only, matching the flow from the meeting notes:
 // Teklif -> Kabul -> Ödeme/bloke -> Teslimat -> Blokenin kaldırılması.
@@ -36,12 +45,13 @@ export class OffersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payments: PaymentService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(buyerId: string, artworkId: string, dto: CreateOfferDto) {
     const artwork = await this.prisma.artwork.findUnique({
       where: { id: artworkId },
-      include: { artistProfile: true },
+      include: { artistProfile: { include: { user: true } } },
     });
     if (!artwork || !['LISTED', 'IN_EXHIBITION'].includes(artwork.status)) {
       throw new NotFoundException('Artwork not found');
@@ -61,7 +71,7 @@ export class OffersService {
       );
     }
 
-    return this.prisma.offer.create({
+    const offer = await this.prisma.offer.create({
       data: {
         artworkId,
         buyerId,
@@ -69,6 +79,20 @@ export class OffersService {
         currency: artwork.currency,
       },
     });
+
+    const recipients = [
+      artwork.artistProfile.userId,
+      ...(await this.getOrgAdminUserIds(artwork.artistProfile.user.organizationId)),
+    ];
+    await this.notifications.createForMany(recipients, NOTIFICATION_TYPES.OfferCreated, {
+      offerId: offer.id,
+      artworkId: artwork.id,
+      artworkTitle: artwork.title,
+      amount: offer.amount,
+      currency: offer.currency,
+    });
+
+    return offer;
   }
 
   findMineAsBuyer(userId: string) {
@@ -82,9 +106,66 @@ export class OffersService {
   findMineAsSeller(userId: string) {
     return this.prisma.offer.findMany({
       where: { artwork: { artistProfile: { userId } } },
-      include: { artwork: true },
+      // exhibitionLinks so the UI can show which show the artwork is
+      // currently hanging in, same "sergileniyor: X" info ArtworkList.tsx
+      // already surfaces elsewhere.
+      include: { artwork: { include: { exhibitionLinks: { include: { exhibition: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // Admin's org-wide view — unlike findMineAsSeller (one artist's own
+  // offers, no buyer identity) this includes every offer on any artwork by
+  // any artist in the admin's organization, buyer included. An ADMIN is
+  // the gallery's business side and needs full visibility to act on sales;
+  // an ARTIST only sees their own artwork's offers (see setArtistDecision's
+  // comment on why buyer identity is withheld from them).
+  findByOrganization(organizationId: string) {
+    return this.prisma.offer.findMany({
+      where: { artwork: { artistProfile: { user: { organizationId } } } },
+      include: {
+        artwork: {
+          include: { artistProfile: true, exhibitionLinks: { include: { exhibition: true } } },
+        },
+        buyer: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Informal, non-binding signal — deliberately NOT part of the real
+  // status state machine below (assertTransition/ALLOWED_TRANSITIONS) and
+  // never touches PaymentService. One-time and irreversible per product
+  // decision: an artist can register their preference once, it locks.
+  async setArtistDecision(id: string, userId: string, decision: ArtistDecision) {
+    const offer = await this.assertSeller(id, userId);
+    if (offer.artistDecision) {
+      throw new ConflictException('A decision has already been recorded for this offer');
+    }
+    if (offer.status !== 'PENDING') {
+      throw new ConflictException('This offer is no longer pending');
+    }
+
+    const updated = await this.prisma.offer.update({
+      where: { id },
+      data: { artistDecision: decision },
+    });
+
+    const artistUser = await this.prisma.user.findUniqueOrThrow({
+      where: { id: offer.artwork.artistProfile.userId },
+    });
+    const recipients = [
+      offer.buyerId,
+      ...(await this.getOrgAdminUserIds(artistUser.organizationId)),
+    ];
+    await this.notifications.createForMany(recipients, NOTIFICATION_TYPES.OfferDecision, {
+      offerId: offer.id,
+      artworkId: offer.artworkId,
+      artworkTitle: offer.artwork.title,
+      decision,
+    });
+
+    return updated;
   }
 
   async findOneForParticipant(id: string, userId: string) {
@@ -269,5 +350,14 @@ export class OffersService {
       );
     }
     return offer;
+  }
+
+  private async getOrgAdminUserIds(organizationId: string | null): Promise<string[]> {
+    if (!organizationId) return [];
+    const admins = await this.prisma.user.findMany({
+      where: { organizationId, role: UserRole.ADMIN },
+      select: { id: true },
+    });
+    return admins.map((a) => a.id);
   }
 }
