@@ -10,8 +10,15 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  // Includes `organization` (not just organizationId) — /auth/me is this
+  // method's only caller, and the frontend needs the org's display name
+  // (e.g. to auto-fill an invited artist's "Kurum Adı" as read-only,
+  // instead of letting them free-type an unrelated institution name).
   findById(id: string) {
-    return this.prisma.user.findUnique({ where: { id } });
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: { organization: true },
+    });
   }
 
   findOrCreateByEmail(email: string) {

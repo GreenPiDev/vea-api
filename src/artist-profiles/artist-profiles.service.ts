@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateArtistProfileDto } from './dto/create-artist-profile.dto';
+import { UpdateArtistProfileDto } from './dto/update-artist-profile.dto';
 
 @Injectable()
 export class ArtistProfilesService {
@@ -36,5 +37,17 @@ export class ArtistProfilesService {
 
   findByUserId(userId: string) {
     return this.prisma.artistProfile.findUnique({ where: { userId } });
+  }
+
+  // Only bio is updatable — displayName has no editing UI yet (out of this
+  // task's scope), and institutionName is intentionally not artist-editable
+  // at all (vea-frontend derives/displays it from the inviting
+  // organization, not from free text the artist controls).
+  async updateBio(userId: string, dto: UpdateArtistProfileDto) {
+    await this.getOwnOrThrow(userId);
+    return this.prisma.artistProfile.update({
+      where: { userId },
+      data: { bio: dto.bio },
+    });
   }
 }

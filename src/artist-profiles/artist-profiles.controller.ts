@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { ArtistProfilesService } from './artist-profiles.service';
 import { CreateArtistProfileDto } from './dto/create-artist-profile.dto';
+import { UpdateArtistProfileDto } from './dto/update-artist-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -26,5 +27,10 @@ export class ArtistProfilesController {
   @Get('me')
   getOwn(@CurrentUser() user: JwtPayload) {
     return this.artistProfiles.getOwnOrThrow(user.sub);
+  }
+
+  @Patch('me')
+  updateOwn(@CurrentUser() user: JwtPayload, @Body() dto: UpdateArtistProfileDto) {
+    return this.artistProfiles.updateBio(user.sub, dto);
   }
 }
