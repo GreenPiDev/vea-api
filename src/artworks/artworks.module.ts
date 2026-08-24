@@ -8,5 +8,6 @@ import { CloudinaryModule } from '../common/cloudinary/cloudinary.module';
   imports: [ArtistProfilesModule, CloudinaryModule],
   controllers: [ArtworksController],
   providers: [ArtworksService],
+  exports: [ArtworksService],
 })
 export class ArtworksModule {}

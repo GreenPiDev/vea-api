@@ -132,4 +132,10 @@ export class ArtworksController {
   archive(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.artworks.archive(id, user.sub);
   }
+
+  @Patch(':id/unarchive')
+  @UseGuards(JwtAuthGuard)
+  unarchive(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.artworks.unarchive(id, user.sub);
+  }
 }

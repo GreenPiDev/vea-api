@@ -16,6 +16,7 @@ import { ExhibitionsModule } from './exhibitions/exhibitions.module';
 import { OffersModule } from './offers/offers.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ArtworkRemovalRequestsModule } from './artwork-removal-requests/artwork-removal-requests.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     OffersModule,
     RealtimeModule,
     NotificationsModule,
+    ArtworkRemovalRequestsModule,
   ],
   controllers: [AppController],
   providers: [

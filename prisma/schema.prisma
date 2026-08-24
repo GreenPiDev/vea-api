@@ -65,6 +65,12 @@ enum ArtistDecision {
   REJECTED
 }
 
+enum RemovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum TransactionStatus {
   PENDING
   HELD
@@ -114,13 +120,15 @@ model User {
   marketingSourceId String?
   createdAt         DateTime @default(now())
 
-  organization       Organization?      @relation(fields: [organizationId], references: [id])
-  marketingSource    MarketingSource?   @relation(fields: [marketingSourceId], references: [id])
-  artistProfile      ArtistProfile?
-  offers             Offer[]
-  verificationCodes  VerificationCode[]
-  curatedExhibitions Exhibition[]
-  notifications      Notification[]
+  organization           Organization?           @relation(fields: [organizationId], references: [id])
+  marketingSource        MarketingSource?        @relation(fields: [marketingSourceId], references: [id])
+  artistProfile          ArtistProfile?
+  offers                 Offer[]
+  verificationCodes      VerificationCode[]
+  curatedExhibitions     Exhibition[]
+  notifications          Notification[]
+  removalRequestsMade    ArtworkRemovalRequest[] @relation("RemovalRequestedBy")
+  removalRequestsDecided ArtworkRemovalRequest[] @relation("RemovalDecidedBy")
 
   @@index([marketingSourceId])
   @@index([organizationId])
@@ -202,10 +210,11 @@ model Artwork {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
-  artistProfile   ArtistProfile       @relation(fields: [artistProfileId], references: [id])
+  artistProfile   ArtistProfile           @relation(fields: [artistProfileId], references: [id])
   exhibitionLinks ExhibitionArtwork[]
   offers          Offer[]
   visitEvents     VisitEvent[]
+  removalRequests ArtworkRemovalRequest[]
 
   @@index([artistProfileId])
   @@index([status])
@@ -228,10 +237,11 @@ model Exhibition {
   maxArtworks    Int?
   createdAt      DateTime         @default(now())
 
-  curator      User                @relation(fields: [curatorUserId], references: [id])
-  organization Organization?       @relation(fields: [organizationId], references: [id])
-  artworkLinks ExhibitionArtwork[]
-  visitEvents  VisitEvent[]
+  curator         User                    @relation(fields: [curatorUserId], references: [id])
+  organization    Organization?           @relation(fields: [organizationId], references: [id])
+  artworkLinks    ExhibitionArtwork[]
+  visitEvents     VisitEvent[]
+  removalRequests ArtworkRemovalRequest[]
 
   @@index([curatorUserId])
   @@index([organizationId])
@@ -307,4 +317,29 @@ model VisitEvent {
   @@unique([artworkId, sessionId, eventType])
   @@index([exhibitionId, occurredAt])
   @@index([artworkId, occurredAt])
+}
+
+// Sanatçının, bir sergide sergilenmekte olan eserini silmek istediğinde açtığı
+// küratör onayı gereken talep. Artwork.status'u doğrudan etkilemiyor —
+// APPROVED olunca servis katmanı ExhibitionArtwork linkini kaldırıp Artwork'ü
+// arşivliyor (bkz. ArtworkRemovalRequestsService).
+model ArtworkRemovalRequest {
+  id              String               @id @default(cuid())
+  artworkId       String
+  exhibitionId    String
+  requestedById   String
+  message         String
+  status          RemovalRequestStatus @default(PENDING)
+  responseMessage String?
+  decidedById     String?
+  createdAt       DateTime             @default(now())
+  respondedAt     DateTime?
+
+  artwork     Artwork    @relation(fields: [artworkId], references: [id])
+  exhibition  Exhibition @relation(fields: [exhibitionId], references: [id])
+  requestedBy User       @relation("RemovalRequestedBy", fields: [requestedById], references: [id])
+  decidedBy   User?      @relation("RemovalDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([exhibitionId, status])
+  @@index([artworkId, status])
 }

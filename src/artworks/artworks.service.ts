@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ArtworkStatus } from '@prisma/client';
+import { ArtworkStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
@@ -86,8 +86,17 @@ export class ArtworksService {
     return this.prisma.artwork.findMany({
       where: { artistProfileId: profile.id },
       orderBy: { createdAt: 'desc' },
-      // Lets the artist see which exhibition(s) an artwork is currently placed in.
-      include: { exhibitionLinks: { include: { exhibition: true } } },
+      include: {
+        // Lets the artist see which exhibition(s) an artwork is currently placed in.
+        exhibitionLinks: { include: { exhibition: true } },
+        // So ArtworkList.tsx can swap the delete button for a "request
+        // pending" badge instead of letting the artist re-open a second
+        // removal request for the same artwork.
+        removalRequests: {
+          where: { status: 'PENDING' },
+          select: { id: true, status: true, exhibitionId: true },
+        },
+      },
     });
   }
 
@@ -154,14 +163,24 @@ export class ArtworksService {
   async findOneForView(id: string) {
     const artwork = await this.prisma.artwork.findUnique({
       where: { id },
-      include: { artistProfile: true },
+      include: {
+        artistProfile: true,
+        // Only existence matters, never which offer/buyer — artistDecision
+        // is the informal, artist-set "I've accepted this" signal (see
+        // Offer.artistDecision's comment), separate from the real
+        // Offer.status state machine. Surfacing it here as a plain boolean
+        // lets the public artwork view show "sold" and lets OffersService
+        // block further offers, without leaking any offer/buyer detail.
+        offers: { where: { artistDecision: 'APPROVED' }, select: { id: true } },
+      },
     });
     if (!artwork || !PUBLIC_STATUSES.includes(artwork.status)) {
       // Same 404 whether it doesn't exist or is just unpublished (draft/archived) —
       // don't leak which case it is to an unauthenticated caller.
       throw new NotFoundException('Artwork not found');
     }
-    return artwork;
+    const { offers, ...rest } = artwork;
+    return { ...rest, hasApprovedOffer: offers.length > 0 };
   }
 
   async update(id: string, userId: string, dto: UpdateArtworkDto) {
@@ -184,8 +203,47 @@ export class ArtworksService {
   }
 
   async archive(id: string, userId: string) {
-    await this.assertOwnership(id, userId);
+    const artwork = await this.assertOwnership(id, userId);
+    const activeLink = await this.prisma.exhibitionArtwork.findFirst({
+      where: { artworkId: id },
+    });
+    if (activeLink) {
+      throw new ConflictException(
+        'Bu eser bir sergide sergileniyor, doğrudan silinemez',
+      );
+    }
     return this.prisma.artwork.update({
+      where: { id: artwork.id },
+      data: { status: 'ARCHIVED' },
+    });
+  }
+
+  // Reactivates an ARCHIVED artwork. Deliberately does NOT touch
+  // ExhibitionArtwork in any way — an ARCHIVED artwork can never have a
+  // live link (archive()/archiveForRemoval() both guarantee that: the
+  // former refuses to run while a link exists, the latter only runs right
+  // after the link was deleted in the same transaction), so there is
+  // nothing to "not re-add" here, but the omission is intentional: the
+  // artist has to place it in a show again themselves, unarchiving alone
+  // never puts it back on a wall.
+  async unarchive(id: string, userId: string) {
+    const artwork = await this.assertOwnership(id, userId);
+    if (artwork.status !== 'ARCHIVED') {
+      throw new ConflictException('Bu eser arşivde değil');
+    }
+    return this.prisma.artwork.update({
+      where: { id },
+      data: { status: 'LISTED' },
+    });
+  }
+
+  // Used only by ArtworkRemovalRequestsService after an admin approves an
+  // artist's removal request — by that point the ExhibitionArtwork link has
+  // already been deleted in the same transaction, and the caller is the
+  // curator (not the artist), so the ownership/link guards in archive()
+  // above don't apply here.
+  archiveForRemoval(id: string, tx: Prisma.TransactionClient = this.prisma) {
+    return tx.artwork.update({
       where: { id },
       data: { status: 'ARCHIVED' },
     });

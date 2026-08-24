@@ -59,6 +59,7 @@ describe('ExhibitionsService', () => {
     curatorUserId: ownerUserId,
     organizationId: ownerOrgId,
     maxArtworks,
+    artworkLinks: [],
   });
 
   beforeEach(() => {
@@ -440,6 +441,34 @@ describe('ExhibitionsService', () => {
       await expect(
         service.findOneForView('exhibition-1'),
       ).resolves.toBeDefined();
+    });
+
+    it('maps each placed artwork to hasApprovedOffer, stripping the raw offers array', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce({
+        ...exhibitionWithStatus('ACTIVE'),
+        artworkLinks: [
+          {
+            id: 'link-1',
+            artworkId: 'artwork-1',
+            artwork: {
+              id: 'artwork-1',
+              title: 'Sold Piece',
+              offers: [{ id: 'offer-1' }],
+            },
+          },
+          {
+            id: 'link-2',
+            artworkId: 'artwork-2',
+            artwork: { id: 'artwork-2', title: 'Unsold Piece', offers: [] },
+          },
+        ],
+      });
+
+      const result = await service.findOneForView('exhibition-1');
+
+      expect(result.artworkLinks[0].artwork.hasApprovedOffer).toBe(true);
+      expect(result.artworkLinks[0].artwork).not.toHaveProperty('offers');
+      expect(result.artworkLinks[1].artwork.hasApprovedOffer).toBe(false);
     });
   });
 

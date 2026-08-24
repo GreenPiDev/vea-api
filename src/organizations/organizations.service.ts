@@ -31,7 +31,13 @@ export class OrganizationsService {
     await this.assertExists(organizationId);
     return this.prisma.user.findMany({
       where: { organizationId, role: UserRole.ADMIN },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -54,7 +60,13 @@ export class OrganizationsService {
     await this.assertExists(organizationId);
     return this.prisma.user.findMany({
       where: { organizationId, role: UserRole.ARTIST },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -67,5 +79,18 @@ export class OrganizationsService {
   async removeArtist(organizationId: string, userId: string) {
     await this.assertExists(organizationId);
     return this.users.removeFromOrganization(userId, organizationId);
+  }
+
+  // Shared by any module that needs to notify "the org's admins" (Offers,
+  // ArtworkRemovalRequests, ...) — pulled out of OffersService once a second
+  // consumer needed the same query, so it doesn't get copy-pasted a third
+  // time.
+  async getOrgAdminUserIds(organizationId: string | null): Promise<string[]> {
+    if (!organizationId) return [];
+    const admins = await this.prisma.user.findMany({
+      where: { organizationId, role: UserRole.ADMIN },
+      select: { id: true },
+    });
+    return admins.map((a) => a.id);
   }
 }

@@ -7,6 +7,8 @@ import { OffersService } from './offers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentService } from '../payments/payment.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { UsersService } from '../users/users.service';
 
 describe('OffersService', () => {
   const buyerId = 'user-buyer';
@@ -131,10 +133,15 @@ describe('OffersService', () => {
         .fn<Promise<unknown>, [string[], string, object]>()
         .mockResolvedValue(undefined),
     };
+    const organizations = new OrganizationsService(
+      prisma as unknown as PrismaService,
+      {} as unknown as UsersService,
+    );
     service = new OffersService(
       prisma as unknown as PrismaService,
       payments as unknown as PaymentService,
       notifications as unknown as NotificationsService,
+      organizations,
     );
   });
 
@@ -166,7 +173,10 @@ describe('OffersService', () => {
       expect(notifications.createForMany).toHaveBeenCalledWith(
         [sellerId, 'admin-1', 'admin-2'],
         'OFFER_CREATED',
-        expect.objectContaining({ artworkId: 'artwork-1', amount: 50_000 }) as object,
+        expect.objectContaining({
+          artworkId: 'artwork-1',
+          amount: 50_000,
+        }) as object,
       );
     });
 
@@ -183,6 +193,19 @@ describe('OffersService', () => {
         id: 'offer-existing',
         status: 'ACCEPTED',
       });
+      await expect(
+        service.create(buyerId, 'artwork-1', { amount: 50_000 }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects an offer on an artwork the artist has already approved a sale on', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(artwork('LISTED'));
+      prisma.offer.findFirst
+        .mockResolvedValueOnce(null) // reserved-status check
+        .mockResolvedValueOnce({
+          id: 'offer-existing',
+          artistDecision: 'APPROVED',
+        }); // artistDecision check
       await expect(
         service.create(buyerId, 'artwork-1', { amount: 50_000 }),
       ).rejects.toThrow(ConflictException);
@@ -413,7 +436,9 @@ describe('OffersService', () => {
       await service.findByOrganization(orgId);
       expect(prisma.offer.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { artwork: { artistProfile: { user: { organizationId: orgId } } } },
+          where: {
+            artwork: { artistProfile: { user: { organizationId: orgId } } },
+          },
         }) as object,
       );
     });

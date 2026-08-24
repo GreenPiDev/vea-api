@@ -24,6 +24,9 @@ describe('ArtworksService', () => {
       findMany: jest.Mock<Promise<unknown>, [unknown]>;
       update: jest.Mock<Promise<unknown>, [unknown]>;
     };
+    exhibitionArtwork: {
+      findFirst: jest.Mock<Promise<unknown>, [unknown]>;
+    };
     user: {
       findUniqueOrThrow: jest.Mock<Promise<unknown>, [unknown]>;
     };
@@ -42,6 +45,7 @@ describe('ArtworksService', () => {
   const artworkWithStatus = (status: string) => ({
     id: 'artwork-1',
     status,
+    offers: [],
     artistProfile: { userId: ownerUserId },
   });
 
@@ -52,6 +56,11 @@ describe('ArtworksService', () => {
         findUnique: jest.fn<Promise<unknown>, [unknown]>(),
         findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
+      },
+      exhibitionArtwork: {
+        findFirst: jest
+          .fn<Promise<unknown>, [unknown]>()
+          .mockResolvedValue(null),
       },
       user: {
         findUniqueOrThrow: jest
@@ -96,6 +105,24 @@ describe('ArtworksService', () => {
         artworkWithStatus('LISTED'),
       );
       await expect(service.findOneForView('artwork-1')).resolves.toBeDefined();
+    });
+
+    it('reports hasApprovedOffer: false when no offer has an artist-approved decision', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artworkWithStatus('LISTED'),
+      );
+      const result = await service.findOneForView('artwork-1');
+      expect(result.hasApprovedOffer).toBe(false);
+      expect(result).not.toHaveProperty('offers');
+    });
+
+    it('reports hasApprovedOffer: true once an offer has an artist-approved decision', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce({
+        ...artworkWithStatus('LISTED'),
+        offers: [{ id: 'offer-1' }],
+      });
+      const result = await service.findOneForView('artwork-1');
+      expect(result.hasApprovedOffer).toBe(true);
     });
 
     it('404s a DRAFT artwork even though it exists (no owner-bypass on the public route)', async () => {
@@ -168,6 +195,50 @@ describe('ArtworksService', () => {
         artworkWithStatus('LISTED'),
       );
       await expect(service.archive('artwork-1', otherUserId)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('archive rejects an artwork that is placed in an exhibition', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artworkWithStatus('IN_EXHIBITION'),
+      );
+      prisma.exhibitionArtwork.findFirst.mockResolvedValueOnce({
+        id: 'link-1',
+        exhibitionId: 'exhibition-1',
+        artworkId: 'artwork-1',
+      });
+      await expect(service.archive('artwork-1', ownerUserId)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.artwork.update).not.toHaveBeenCalled();
+    });
+
+    it('unarchive moves an ARCHIVED artwork back to LISTED', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artworkWithStatus('ARCHIVED'),
+      );
+      await service.unarchive('artwork-1', ownerUserId);
+      expect(prisma.artwork.update).toHaveBeenCalledWith({
+        where: { id: 'artwork-1' },
+        data: { status: 'LISTED' },
+      });
+    });
+
+    it('unarchive rejects an artwork that is not ARCHIVED', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artworkWithStatus('LISTED'),
+      );
+      await expect(service.unarchive('artwork-1', ownerUserId)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('unarchive rejects a non-owner', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artworkWithStatus('ARCHIVED'),
+      );
+      await expect(service.unarchive('artwork-1', otherUserId)).rejects.toThrow(
         ForbiddenException,
       );
     });

@@ -4,10 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ArtistDecision, OfferStatus, UserRole } from '@prisma/client';
+import { ArtistDecision, OfferStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentService } from '../payments/payment.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { calculateCommission } from './commission';
 
@@ -46,6 +47,7 @@ export class OffersService {
     private readonly prisma: PrismaService,
     private readonly payments: PaymentService,
     private readonly notifications: NotificationsService,
+    private readonly organizations: OrganizationsService,
   ) {}
 
   async create(buyerId: string, artworkId: string, dto: CreateOfferDto) {
@@ -71,6 +73,18 @@ export class OffersService {
       );
     }
 
+    // artistDecision is informal and separate from the real status machine
+    // above (see Offer.artistDecision's comment), but once the artist has
+    // recorded APPROVED on some offer for this artwork, product intent is
+    // that it's sold in practice — no further offers should be possible,
+    // even though the real Offer/Artwork.status transitions haven't run.
+    const approvedDecision = await this.prisma.offer.findFirst({
+      where: { artworkId, artistDecision: 'APPROVED' },
+    });
+    if (approvedDecision) {
+      throw new ConflictException('This artwork has already been sold');
+    }
+
     const offer = await this.prisma.offer.create({
       data: {
         artworkId,
@@ -82,15 +96,21 @@ export class OffersService {
 
     const recipients = [
       artwork.artistProfile.userId,
-      ...(await this.getOrgAdminUserIds(artwork.artistProfile.user.organizationId)),
+      ...(await this.organizations.getOrgAdminUserIds(
+        artwork.artistProfile.user.organizationId,
+      )),
     ];
-    await this.notifications.createForMany(recipients, NOTIFICATION_TYPES.OfferCreated, {
-      offerId: offer.id,
-      artworkId: artwork.id,
-      artworkTitle: artwork.title,
-      amount: offer.amount,
-      currency: offer.currency,
-    });
+    await this.notifications.createForMany(
+      recipients,
+      NOTIFICATION_TYPES.OfferCreated,
+      {
+        offerId: offer.id,
+        artworkId: artwork.id,
+        artworkTitle: artwork.title,
+        amount: offer.amount,
+        currency: offer.currency,
+      },
+    );
 
     return offer;
   }
@@ -109,7 +129,11 @@ export class OffersService {
       // exhibitionLinks so the UI can show which show the artwork is
       // currently hanging in, same "sergileniyor: X" info ArtworkList.tsx
       // already surfaces elsewhere.
-      include: { artwork: { include: { exhibitionLinks: { include: { exhibition: true } } } } },
+      include: {
+        artwork: {
+          include: { exhibitionLinks: { include: { exhibition: true } } },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -125,7 +149,10 @@ export class OffersService {
       where: { artwork: { artistProfile: { user: { organizationId } } } },
       include: {
         artwork: {
-          include: { artistProfile: true, exhibitionLinks: { include: { exhibition: true } } },
+          include: {
+            artistProfile: true,
+            exhibitionLinks: { include: { exhibition: true } },
+          },
         },
         buyer: true,
       },
@@ -137,10 +164,16 @@ export class OffersService {
   // status state machine below (assertTransition/ALLOWED_TRANSITIONS) and
   // never touches PaymentService. One-time and irreversible per product
   // decision: an artist can register their preference once, it locks.
-  async setArtistDecision(id: string, userId: string, decision: ArtistDecision) {
+  async setArtistDecision(
+    id: string,
+    userId: string,
+    decision: ArtistDecision,
+  ) {
     const offer = await this.assertSeller(id, userId);
     if (offer.artistDecision) {
-      throw new ConflictException('A decision has already been recorded for this offer');
+      throw new ConflictException(
+        'A decision has already been recorded for this offer',
+      );
     }
     if (offer.status !== 'PENDING') {
       throw new ConflictException('This offer is no longer pending');
@@ -156,14 +189,20 @@ export class OffersService {
     });
     const recipients = [
       offer.buyerId,
-      ...(await this.getOrgAdminUserIds(artistUser.organizationId)),
+      ...(await this.organizations.getOrgAdminUserIds(
+        artistUser.organizationId,
+      )),
     ];
-    await this.notifications.createForMany(recipients, NOTIFICATION_TYPES.OfferDecision, {
-      offerId: offer.id,
-      artworkId: offer.artworkId,
-      artworkTitle: offer.artwork.title,
-      decision,
-    });
+    await this.notifications.createForMany(
+      recipients,
+      NOTIFICATION_TYPES.OfferDecision,
+      {
+        offerId: offer.id,
+        artworkId: offer.artworkId,
+        artworkTitle: offer.artwork.title,
+        decision,
+      },
+    );
 
     return updated;
   }
@@ -350,14 +389,5 @@ export class OffersService {
       );
     }
     return offer;
-  }
-
-  private async getOrgAdminUserIds(organizationId: string | null): Promise<string[]> {
-    if (!organizationId) return [];
-    const admins = await this.prisma.user.findMany({
-      where: { organizationId, role: UserRole.ADMIN },
-      select: { id: true },
-    });
-    return admins.map((a) => a.id);
   }
 }

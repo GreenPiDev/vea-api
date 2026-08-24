@@ -103,16 +103,39 @@ export class ExhibitionsService {
       where: { id },
       // artistProfile is included so the 3D scene can render a wall label
       // (artist display name) without a second round-trip per artwork.
+      // offers is included (existence only, never buyer/amount) so the
+      // artwork detail card can show "sold" and hide the offer form once
+      // the artist has recorded an informal artistDecision — see
+      // ArtworksService.findOneForView's identical comment.
       include: {
         artworkLinks: {
-          include: { artwork: { include: { artistProfile: true } } },
+          include: {
+            artwork: {
+              include: {
+                artistProfile: true,
+                offers: {
+                  where: { artistDecision: 'APPROVED' },
+                  select: { id: true },
+                },
+              },
+            },
+          },
         },
       },
     });
     if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status)) {
       throw new NotFoundException('Exhibition not found');
     }
-    return exhibition;
+    return {
+      ...exhibition,
+      artworkLinks: exhibition.artworkLinks.map((link) => {
+        const { offers, ...artwork } = link.artwork;
+        return {
+          ...link,
+          artwork: { ...artwork, hasApprovedOffer: offers.length > 0 },
+        };
+      }),
+    };
   }
 
   async update(
@@ -271,16 +294,31 @@ export class ExhibitionsService {
     await this.assertLinkExists(exhibitionId, artworkId);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.exhibitionArtwork.delete({
-        where: { exhibitionId_artworkId: { exhibitionId, artworkId } },
-      });
-      if (exhibition.status === 'ACTIVE') {
-        await tx.artwork.updateMany({
-          where: { id: artworkId, status: 'IN_EXHIBITION' },
-          data: { status: 'LISTED' },
-        });
-      }
+      await this.removeArtworkLink(tx, exhibition, artworkId);
     });
+  }
+
+  // Shared by removeArtwork() above and ArtworkRemovalRequestsService (which
+  // composes this with ArtworksService.archiveForRemoval in one transaction
+  // after a curator approves an artist's removal request) — same link
+  // deletion + ACTIVE-only status sync, just callable with a caller-owned
+  // transaction client instead of always opening its own.
+  async removeArtworkLink(
+    tx: Prisma.TransactionClient,
+    exhibition: { id: string; status: ExhibitionStatus },
+    artworkId: string,
+  ) {
+    await tx.exhibitionArtwork.delete({
+      where: {
+        exhibitionId_artworkId: { exhibitionId: exhibition.id, artworkId },
+      },
+    });
+    if (exhibition.status === 'ACTIVE') {
+      await tx.artwork.updateMany({
+        where: { id: artworkId, status: 'IN_EXHIBITION' },
+        data: { status: 'LISTED' },
+      });
+    }
   }
 
   // Lightweight analytics counter — only checks both ids actually exist, no
