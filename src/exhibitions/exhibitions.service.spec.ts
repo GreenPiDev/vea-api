@@ -4,8 +4,15 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ExhibitionsService } from './exhibitions.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+const uniqueViolation = () =>
+  new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  });
 
 describe('ExhibitionsService', () => {
   const ownerUserId = 'user-owner';
@@ -35,11 +42,18 @@ describe('ExhibitionsService', () => {
       findUnique: jest.Mock<Promise<unknown>, [unknown]>;
       updateMany: jest.Mock<Promise<unknown>, [unknown]>;
     };
+    visitEvent: {
+      create: jest.Mock<Promise<unknown>, [unknown]>;
+      count: jest.Mock<Promise<number>, [unknown]>;
+    };
     $transaction: jest.Mock;
   };
   let service: ExhibitionsService;
 
-  const exhibitionWithStatus = (status: string, maxArtworks: number | null = null) => ({
+  const exhibitionWithStatus = (
+    status: string,
+    maxArtworks: number | null = null,
+  ) => ({
     id: 'exhibition-1',
     status,
     curatorUserId: ownerUserId,
@@ -72,6 +86,10 @@ describe('ExhibitionsService', () => {
         updateMany: jest
           .fn<Promise<unknown>, [unknown]>()
           .mockResolvedValue({}),
+      },
+      visitEvent: {
+        create: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
+        count: jest.fn<Promise<number>, [unknown]>().mockResolvedValue(0),
       },
       // Support both array-of-promises and interactive-callback $transaction forms.
       $transaction: jest.fn((arg: unknown) => {
@@ -455,6 +473,65 @@ describe('ExhibitionsService', () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(null);
       await expect(
         service.findOneOwn('exhibition-1', ownerOrgId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('recordArtworkView', () => {
+    beforeEach(() => {
+      prisma.exhibition.findUnique.mockResolvedValue(
+        exhibitionWithStatus('ACTIVE'),
+      );
+      prisma.artwork.findUnique.mockResolvedValue({ id: 'artwork-1' });
+    });
+
+    it('creates a VisitEvent and returns the updated count on a first view', async () => {
+      prisma.visitEvent.count.mockResolvedValueOnce(1);
+
+      await expect(
+        service.recordArtworkView('exhibition-1', 'artwork-1', 'session-1'),
+      ).resolves.toEqual({ count: 1 });
+
+      expect(prisma.visitEvent.create).toHaveBeenCalledWith({
+        data: {
+          exhibitionId: 'exhibition-1',
+          artworkId: 'artwork-1',
+          sessionId: 'session-1',
+          eventType: 'ARTWORK_VIEW',
+        },
+      });
+    });
+
+    it('does not increment when the same session views the same artwork again (dedup via unique constraint)', async () => {
+      prisma.visitEvent.create.mockRejectedValueOnce(uniqueViolation());
+      prisma.visitEvent.count.mockResolvedValueOnce(1);
+
+      await expect(
+        service.recordArtworkView('exhibition-1', 'artwork-1', 'session-1'),
+      ).resolves.toEqual({ count: 1 });
+    });
+
+    it('rethrows non-duplicate errors instead of swallowing them', async () => {
+      prisma.visitEvent.create.mockRejectedValueOnce(new Error('db down'));
+
+      await expect(
+        service.recordArtworkView('exhibition-1', 'artwork-1', 'session-1'),
+      ).rejects.toThrow('db down');
+    });
+
+    it('404s when the exhibition does not exist', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.recordArtworkView('exhibition-1', 'artwork-1', 'session-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('404s when the artwork does not exist', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.recordArtworkView('exhibition-1', 'artwork-1', 'session-1'),
       ).rejects.toThrow(NotFoundException);
     });
   });

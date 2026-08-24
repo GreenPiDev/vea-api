@@ -7,6 +7,8 @@ import {
 import { ArtworkStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
+import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
+import { slugify } from '../common/slugify';
 import { CreateArtworkDto } from './dto/create-artwork.dto';
 import { UpdateArtworkDto } from './dto/update-artwork.dto';
 import { OWNER_SETTABLE_STATUSES } from './dto/set-artwork-status.dto';
@@ -20,6 +22,7 @@ export class ArtworksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly artistProfiles: ArtistProfilesService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   async create(userId: string, dto: CreateArtworkDto) {
@@ -27,6 +30,20 @@ export class ArtworksService {
     return this.prisma.artwork.create({
       data: { ...dto, artistProfileId: profile.id },
     });
+  }
+
+  // Folder-per-artist in Cloudinary, keyed off the artist's own User.name
+  // (not the editable-elsewhere ArtistProfile.displayName) since artists
+  // can't rename themselves post-signup, so the folder stays stable across
+  // every upload without needing a persisted slug column.
+  async uploadImage(userId: string, file: Express.Multer.File) {
+    const [profile, user] = await Promise.all([
+      this.artistProfiles.getOwnOrThrow(userId),
+      this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+    ]);
+    const slug = slugify(user.name ?? profile.displayName);
+    const url = await this.cloudinary.uploadImage(file, `artworks/${slug}`);
+    return { url };
   }
 
   findPublic(take = DEFAULT_PAGE_SIZE, skip = 0) {
@@ -47,7 +64,11 @@ export class ArtworksService {
   // curator should only be offered their own org's roster, not every
   // artist on the platform. findPublic stays fully open for a possible
   // future general "browse all art" page.
-  findByOrganization(organizationId: string, take = DEFAULT_PAGE_SIZE, skip = 0) {
+  findByOrganization(
+    organizationId: string,
+    take = DEFAULT_PAGE_SIZE,
+    skip = 0,
+  ) {
     return this.prisma.artwork.findMany({
       where: {
         status: { in: PUBLIC_STATUSES },
@@ -91,14 +112,21 @@ export class ArtworksService {
       where: { artworkId: { in: artworkIds }, eventType: 'ARTWORK_VIEW' },
       _count: { artworkId: true },
     });
-    const viewCountByArtworkId = new Map(viewCounts.map((v) => [v.artworkId, v._count.artworkId]));
+    const viewCountByArtworkId = new Map(
+      viewCounts.map((v) => [v.artworkId, v._count.artworkId]),
+    );
 
     const exhibitionIds = [
-      ...new Set(artworks.flatMap((a) => a.exhibitionLinks.map((l) => l.exhibitionId))),
+      ...new Set(
+        artworks.flatMap((a) => a.exhibitionLinks.map((l) => l.exhibitionId)),
+      ),
     ];
     const visitorCounts = await this.prisma.visitEvent.groupBy({
       by: ['exhibitionId'],
-      where: { exhibitionId: { in: exhibitionIds }, eventType: 'EXHIBITION_ENTER' },
+      where: {
+        exhibitionId: { in: exhibitionIds },
+        eventType: 'EXHIBITION_ENTER',
+      },
       _count: { exhibitionId: true },
     });
     const visitorCountByExhibitionId = new Map(
@@ -115,7 +143,8 @@ export class ArtworksService {
           ? {
               id: link.exhibition.id,
               title: link.exhibition.title,
-              totalVisitors: visitorCountByExhibitionId.get(link.exhibitionId) ?? 0,
+              totalVisitors:
+                visitorCountByExhibitionId.get(link.exhibitionId) ?? 0,
             }
           : null,
       };

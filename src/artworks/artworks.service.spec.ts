@@ -6,11 +6,16 @@ import {
 import { ArtworksService } from './artworks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
+import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
 
 describe('ArtworksService', () => {
   const ownerUserId = 'user-owner';
   const otherUserId = 'user-other';
-  const profile = { id: 'profile-1', userId: ownerUserId };
+  const profile = {
+    id: 'profile-1',
+    userId: ownerUserId,
+    displayName: 'Owner Artist',
+  };
 
   let prisma: {
     artwork: {
@@ -19,9 +24,18 @@ describe('ArtworksService', () => {
       findMany: jest.Mock<Promise<unknown>, [unknown]>;
       update: jest.Mock<Promise<unknown>, [unknown]>;
     };
+    user: {
+      findUniqueOrThrow: jest.Mock<Promise<unknown>, [unknown]>;
+    };
   };
   let artistProfiles: {
     getOwnOrThrow: jest.Mock<Promise<typeof profile>, [string]>;
+  };
+  let cloudinary: {
+    uploadImage: jest.Mock<
+      Promise<string>,
+      [unknown, string, ('image' | 'auto')?]
+    >;
   };
   let service: ArtworksService;
 
@@ -39,15 +53,28 @@ describe('ArtworksService', () => {
         findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
+      user: {
+        findUniqueOrThrow: jest
+          .fn<Promise<unknown>, [unknown]>()
+          .mockResolvedValue({ id: ownerUserId, name: 'Mustafa Akagündüz' }),
+      },
     };
     artistProfiles = {
       getOwnOrThrow: jest
         .fn<Promise<typeof profile>, [string]>()
         .mockResolvedValue(profile),
     };
+    cloudinary = {
+      uploadImage: jest
+        .fn<Promise<string>, [unknown, string, ('image' | 'auto')?]>()
+        .mockResolvedValue(
+          'https://res.cloudinary.com/test/image/upload/v1/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+        ),
+    };
     service = new ArtworksService(
       prisma as unknown as PrismaService,
       artistProfiles as unknown as ArtistProfilesService,
+      cloudinary as unknown as CloudinaryService,
     );
   });
 
@@ -142,6 +169,52 @@ describe('ArtworksService', () => {
       );
       await expect(service.archive('artwork-1', otherUserId)).rejects.toThrow(
         ForbiddenException,
+      );
+    });
+  });
+
+  describe('uploadImage', () => {
+    const file = {
+      mimetype: 'image/png',
+      buffer: Buffer.from('x'),
+    } as Express.Multer.File;
+
+    it('slugifies the caller-owned User.name (Turkish chars) into the Cloudinary folder', async () => {
+      await service.uploadImage(ownerUserId, file);
+
+      expect(cloudinary.uploadImage).toHaveBeenCalledWith(
+        file,
+        'artworks/mustafa-akagunduz',
+      );
+    });
+
+    it('falls back to the artist profile displayName when User.name is unset', async () => {
+      prisma.user.findUniqueOrThrow.mockResolvedValueOnce({
+        id: ownerUserId,
+        name: null,
+      });
+
+      await service.uploadImage(ownerUserId, file);
+
+      expect(cloudinary.uploadImage).toHaveBeenCalledWith(
+        file,
+        'artworks/owner-artist',
+      );
+    });
+
+    it('returns the secure_url from Cloudinary', async () => {
+      await expect(service.uploadImage(ownerUserId, file)).resolves.toEqual({
+        url: 'https://res.cloudinary.com/test/image/upload/v1/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+      });
+    });
+
+    it('rejects a user with no artist profile yet', async () => {
+      artistProfiles.getOwnOrThrow.mockRejectedValueOnce(
+        new NotFoundException('No artist profile for this user yet'),
+      );
+
+      await expect(service.uploadImage(otherUserId, file)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

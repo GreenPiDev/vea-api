@@ -37,6 +37,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   REDIS_URL: string = 'redis://localhost:6379';
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_CLOUD_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_API_SECRET?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

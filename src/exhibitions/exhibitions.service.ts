@@ -27,12 +27,18 @@ const ALLOWED_TRANSITIONS: Record<ExhibitionStatus, ExhibitionStatus[]> = {
 export class ExhibitionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, organizationId: string | null, dto: CreateExhibitionDto) {
+  async create(
+    userId: string,
+    organizationId: string | null,
+    dto: CreateExhibitionDto,
+  ) {
     // Defensive only — in practice an ADMIN always has an organizationId,
     // since the only way to become ADMIN is via OrganizationsService.addAdmin,
     // which sets both fields together.
     if (!organizationId) {
-      throw new ForbiddenException('This admin is not assigned to an organization');
+      throw new ForbiddenException(
+        'This admin is not assigned to an organization',
+      );
     }
     if (new Date(dto.endDate) <= new Date(dto.startDate)) {
       throw new BadRequestException('endDate must be after startDate');
@@ -109,7 +115,11 @@ export class ExhibitionsService {
     return exhibition;
   }
 
-  async update(id: string, organizationId: string | null, dto: UpdateExhibitionDto) {
+  async update(
+    id: string,
+    organizationId: string | null,
+    dto: UpdateExhibitionDto,
+  ) {
     await this.assertOwnership(id, organizationId);
     if (
       dto.startDate &&
@@ -131,7 +141,11 @@ export class ExhibitionsService {
     });
   }
 
-  async setStatus(id: string, organizationId: string | null, status: ExhibitionStatus) {
+  async setStatus(
+    id: string,
+    organizationId: string | null,
+    status: ExhibitionStatus,
+  ) {
     const exhibition = await this.assertOwnership(id, organizationId);
     if (!ALLOWED_TRANSITIONS[exhibition.status].includes(status)) {
       throw new ConflictException(
@@ -248,7 +262,11 @@ export class ExhibitionsService {
     });
   }
 
-  async removeArtwork(exhibitionId: string, artworkId: string, organizationId: string | null) {
+  async removeArtwork(
+    exhibitionId: string,
+    artworkId: string,
+    organizationId: string | null,
+  ) {
     const exhibition = await this.assertOwnership(exhibitionId, organizationId);
     await this.assertLinkExists(exhibitionId, artworkId);
 
@@ -270,7 +288,17 @@ export class ExhibitionsService {
   // exhibition is free" philosophy as the rest of this module; a bit of
   // spammable inaccuracy here is an acceptable trade-off for a non-critical
   // view count (unlike Offer/payment paths, which are strict).
-  async recordArtworkView(exhibitionId: string, artworkId: string, sessionId: string) {
+  //
+  // Deduped per (artworkId, sessionId): one session viewing the same artwork
+  // repeatedly (re-opening the card, a React double-effect in dev, a retried
+  // request) counts once, like a "unique view". The DB-level unique
+  // constraint on VisitEvent makes this race-safe even if two near-identical
+  // requests land at once — the loser just hits P2002 and is swallowed.
+  async recordArtworkView(
+    exhibitionId: string,
+    artworkId: string,
+    sessionId: string,
+  ) {
     const [exhibition, artwork] = await Promise.all([
       this.prisma.exhibition.findUnique({ where: { id: exhibitionId } }),
       this.prisma.artwork.findUnique({ where: { id: artworkId } }),
@@ -278,9 +306,16 @@ export class ExhibitionsService {
     if (!exhibition) throw new NotFoundException('Exhibition not found');
     if (!artwork) throw new NotFoundException('Artwork not found');
 
-    await this.prisma.visitEvent.create({
-      data: { exhibitionId, artworkId, sessionId, eventType: 'ARTWORK_VIEW' },
-    });
+    try {
+      await this.prisma.visitEvent.create({
+        data: { exhibitionId, artworkId, sessionId, eventType: 'ARTWORK_VIEW' },
+      });
+    } catch (err) {
+      const isDuplicate =
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002';
+      if (!isDuplicate) throw err;
+    }
     const count = await this.prisma.visitEvent.count({
       where: { artworkId, eventType: 'ARTWORK_VIEW' },
     });
@@ -295,7 +330,9 @@ export class ExhibitionsService {
     await this.assertOwnership(id, organizationId);
 
     const [totalVisitors, links] = await Promise.all([
-      this.prisma.visitEvent.count({ where: { exhibitionId: id, eventType: 'EXHIBITION_ENTER' } }),
+      this.prisma.visitEvent.count({
+        where: { exhibitionId: id, eventType: 'EXHIBITION_ENTER' },
+      }),
       this.prisma.exhibitionArtwork.findMany({
         where: { exhibitionId: id },
         include: { artwork: { select: { id: true, title: true } } },
@@ -308,7 +345,9 @@ export class ExhibitionsService {
       where: { artworkId: { in: artworkIds }, eventType: 'ARTWORK_VIEW' },
       _count: { artworkId: true },
     });
-    const viewCountByArtworkId = new Map(viewCounts.map((v) => [v.artworkId, v._count.artworkId]));
+    const viewCountByArtworkId = new Map(
+      viewCounts.map((v) => [v.artworkId, v._count.artworkId]),
+    );
 
     return {
       totalVisitors,

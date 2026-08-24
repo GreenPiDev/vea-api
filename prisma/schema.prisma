@@ -304,6 +304,7 @@ model VisitEvent {
   exhibition Exhibition @relation(fields: [exhibitionId], references: [id])
   artwork    Artwork?   @relation(fields: [artworkId], references: [id])
 
+  @@unique([artworkId, sessionId, eventType])
   @@index([exhibitionId, occurredAt])
   @@index([artworkId, occurredAt])
 }
