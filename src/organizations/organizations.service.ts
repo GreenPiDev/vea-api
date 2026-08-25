@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -15,8 +16,27 @@ export class OrganizationsService {
     return this.prisma.organization.create({ data: { name: dto.name } });
   }
 
+  // SUPERADMIN's organizations table needs more than the bare name to be
+  // useful — admin/exhibition counts via a single Prisma _count query
+  // (no N+1, filtered by role since the `admins` relation is really "every
+  // user in this org", ADMIN and ARTIST alike — see the model comment).
   findAll() {
-    return this.prisma.organization.findMany({ orderBy: { createdAt: 'asc' } });
+    return this.prisma.organization.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: {
+        _count: {
+          select: {
+            admins: { where: { role: UserRole.ADMIN } },
+            exhibitions: true,
+          },
+        },
+      },
+    });
+  }
+
+  async update(id: string, dto: UpdateOrganizationDto) {
+    await this.assertExists(id);
+    return this.prisma.organization.update({ where: { id }, data: { name: dto.name } });
   }
 
   private async assertExists(organizationId: string) {

@@ -5,12 +5,14 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { AddOrgAdminDto } from './dto/add-org-admin.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -38,6 +40,11 @@ export class OrganizationsController {
   @Get()
   findAll() {
     return this.organizations.findAll();
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto) {
+    return this.organizations.update(id, dto);
   }
 
   @Get(':id/admins')
