@@ -45,7 +45,7 @@ export class OffersController {
   // Must come before 'offers/:id' so "organization" isn't swallowed as an offer id.
   @Get('offers/organization')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   listOrganizationOffers(@CurrentUser() user: JwtPayload) {
     if (!user.organizationId) {
       throw new ForbiddenException('This admin is not assigned to an organization');

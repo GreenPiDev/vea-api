@@ -38,8 +38,8 @@ export class UsersService {
   setAdminForOrganization(email: string, organizationId: string) {
     return this.prisma.user.upsert({
       where: { email },
-      update: { role: UserRole.ADMIN, organizationId },
-      create: { email, role: UserRole.ADMIN, organizationId },
+      update: { role: UserRole.GALLERY_ADMIN, organizationId },
+      create: { email, role: UserRole.GALLERY_ADMIN, organizationId },
     });
   }
 
@@ -49,8 +49,8 @@ export class UsersService {
   setArtistForOrganization(email: string, organizationId: string) {
     return this.prisma.user.upsert({
       where: { email },
-      update: { role: UserRole.ARTIST, organizationId },
-      create: { email, role: UserRole.ARTIST, organizationId },
+      update: { role: UserRole.SELLER, organizationId },
+      create: { email, role: UserRole.SELLER, organizationId },
     });
   }
 

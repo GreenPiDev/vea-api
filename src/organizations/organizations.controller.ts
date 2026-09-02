@@ -63,19 +63,19 @@ export class OrganizationsController {
   }
 
   @Get('mine/artists')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   listMyArtists(@CurrentUser() user: JwtPayload) {
     return this.organizations.listArtists(this.requireOrg(user));
   }
 
   @Post('mine/artists')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   addMyArtist(@CurrentUser() user: JwtPayload, @Body() dto: AddOrgAdminDto) {
     return this.organizations.addArtist(this.requireOrg(user), dto.email);
   }
 
   @Delete('mine/artists/:userId')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   removeMyArtist(@CurrentUser() user: JwtPayload, @Param('userId') userId: string) {
     return this.organizations.removeArtist(this.requireOrg(user), userId);
   }

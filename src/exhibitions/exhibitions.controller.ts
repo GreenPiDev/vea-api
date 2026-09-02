@@ -35,21 +35,24 @@ export class ExhibitionsController {
 
   @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  listMine(@CurrentUser() user: JwtPayload) {
-    return this.exhibitions.findOwn(user.organizationId);
+  @Roles(UserRole.GALLERY_ADMIN)
+  listMine(
+    @CurrentUser() user: JwtPayload,
+    @Query('includeRemoved') includeRemoved?: string,
+  ) {
+    return this.exhibitions.findOwn(user.organizationId, includeRemoved === 'true');
   }
 
   @Get('mine/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   getOneMine(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.exhibitions.findOneOwn(id, user.organizationId);
   }
 
   @Get('mine/:id/stats')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   getStats(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.exhibitions.getStatsForOwner(id, user.organizationId);
   }
@@ -61,14 +64,14 @@ export class ExhibitionsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateExhibitionDto) {
     return this.exhibitions.create(user.sub, user.organizationId, dto);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   update(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -79,7 +82,7 @@ export class ExhibitionsController {
 
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   setStatus(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -90,14 +93,21 @@ export class ExhibitionsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.exhibitions.remove(id, user.organizationId);
   }
 
+  @Patch(':id/restore')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.GALLERY_ADMIN)
+  restore(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.exhibitions.restore(id, user.organizationId);
+  }
+
   @Post(':id/artworks')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   addArtwork(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -108,7 +118,7 @@ export class ExhibitionsController {
 
   @Patch(':id/artworks/:artworkId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   updateArtwork(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -120,7 +130,7 @@ export class ExhibitionsController {
 
   @Delete(':id/artworks/:artworkId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   removeArtwork(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

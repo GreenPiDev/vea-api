@@ -39,6 +39,13 @@ export class CreateExhibitionDto {
   @Min(1)
   maxArtworks?: number;
 
+  // Optional "solo show" artist — see the field comment on the Exhibition
+  // model. Service layer verifies this ArtistProfile belongs to the
+  // caller's own Organization, same guard as artwork placement.
+  @IsOptional()
+  @IsString()
+  artistProfileId?: string;
+
   // 3D scene layout data, stored as an opaque JSON column (no migration for
   // shape changes) but validated as a discriminated union — see scene-config.dto.ts.
   @IsOptional()

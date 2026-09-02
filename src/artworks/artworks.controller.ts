@@ -54,7 +54,7 @@ export class ArtworksController {
   // Must come before ':id' so "organization" isn't swallowed as an artwork id.
   @Get('organization')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   listMyOrganizationArtworks(
     @CurrentUser() user: JwtPayload,
     @Query() query: PaginationQueryDto,

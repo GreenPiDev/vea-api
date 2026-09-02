@@ -59,6 +59,7 @@ describe('ExhibitionsService', () => {
     curatorUserId: ownerUserId,
     organizationId: ownerOrgId,
     maxArtworks,
+    deletedAt: null,
     artworkLinks: [],
   });
 
@@ -176,6 +177,26 @@ describe('ExhibitionsService', () => {
       });
     });
 
+    it('allows ACTIVE -> DRAFT ("Yayından Kaldır") and reverts IN_EXHIBITION artworks to LISTED', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('ACTIVE'),
+      );
+
+      await service.setStatus('exhibition-1', ownerOrgId, 'DRAFT');
+
+      expect(prisma.artwork.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: 'IN_EXHIBITION',
+          exhibitionLinks: { some: { exhibitionId: 'exhibition-1' } },
+        },
+        data: { status: 'LISTED' },
+      });
+      expect(prisma.exhibition.update).toHaveBeenCalledWith({
+        where: { id: 'exhibition-1' },
+        data: { status: 'DRAFT' },
+      });
+    });
+
     it('rejects DRAFT -> ENDED (must go through ACTIVE)', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('DRAFT'),
@@ -205,24 +226,65 @@ describe('ExhibitionsService', () => {
   });
 
   describe('remove', () => {
-    it('deletes a DRAFT exhibition and its artwork links', async () => {
+    it('soft-deletes a DRAFT exhibition (sets deletedAt, no row delete)', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('DRAFT'),
       );
       await service.remove('exhibition-1', ownerOrgId);
-      expect(prisma.exhibitionArtwork.deleteMany).toHaveBeenCalledWith({
-        where: { exhibitionId: 'exhibition-1' },
-      });
-      expect(prisma.exhibition.delete).toHaveBeenCalledWith({
+      expect(prisma.exhibition.update).toHaveBeenCalledWith({
         where: { id: 'exhibition-1' },
+        data: { deletedAt: expect.any(Date) },
       });
+      expect(prisma.exhibition.delete).not.toHaveBeenCalled();
     });
 
-    it('refuses to delete an ACTIVE exhibition', async () => {
+    it('also soft-deletes an ACTIVE exhibition and releases its IN_EXHIBITION artworks back to LISTED', async () => {
       prisma.exhibition.findUnique.mockResolvedValueOnce(
         exhibitionWithStatus('ACTIVE'),
       );
+      await service.remove('exhibition-1', ownerOrgId);
+      expect(prisma.artwork.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: 'IN_EXHIBITION',
+          exhibitionLinks: { some: { exhibitionId: 'exhibition-1' } },
+        },
+        data: { status: 'LISTED' },
+      });
+      expect(prisma.exhibition.update).toHaveBeenCalledWith({
+        where: { id: 'exhibition-1' },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+
+    it('refuses to remove an already-removed exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce({
+        ...exhibitionWithStatus('DRAFT'),
+        deletedAt: new Date(),
+      });
       await expect(service.remove('exhibition-1', ownerOrgId)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('restore', () => {
+    it('clears deletedAt on a removed exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce({
+        ...exhibitionWithStatus('DRAFT'),
+        deletedAt: new Date(),
+      });
+      await service.restore('exhibition-1', ownerOrgId);
+      expect(prisma.exhibition.update).toHaveBeenCalledWith({
+        where: { id: 'exhibition-1' },
+        data: { deletedAt: null },
+      });
+    });
+
+    it('refuses to restore an exhibition that is not removed', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+      await expect(service.restore('exhibition-1', ownerOrgId)).rejects.toThrow(
         ConflictException,
       );
     });

@@ -26,7 +26,7 @@ export class OrganizationsService {
       include: {
         _count: {
           select: {
-            admins: { where: { role: UserRole.ADMIN } },
+            admins: { where: { role: UserRole.GALLERY_ADMIN } },
             exhibitions: true,
           },
         },
@@ -50,7 +50,7 @@ export class OrganizationsService {
   async listAdmins(organizationId: string) {
     await this.assertExists(organizationId);
     return this.prisma.user.findMany({
-      where: { organizationId, role: UserRole.ADMIN },
+      where: { organizationId, role: UserRole.GALLERY_ADMIN },
       select: {
         id: true,
         email: true,
@@ -79,13 +79,28 @@ export class OrganizationsService {
   async listArtists(organizationId: string) {
     await this.assertExists(organizationId);
     return this.prisma.user.findMany({
-      where: { organizationId, role: UserRole.ARTIST },
+      where: { organizationId, role: UserRole.SELLER },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
         createdAt: true,
+        // Lets the curator's exhibition-creation dropdown (ExhibitionForm.tsx)
+        // pin an exhibition to this artist's ArtistProfile.id directly,
+        // without a second round-trip. Null until the invited artist has
+        // actually created their profile (see @Roles(SELLER) on
+        // POST /artist-profiles) — the frontend excludes those from the
+        // dropdown rather than offering a selection that can't be saved.
+        // `_count.artworks` feeds OrgArtistList.tsx's roster table column —
+        // a single query, no per-artist round-trip.
+        artistProfile: {
+          select: {
+            id: true,
+            displayName: true,
+            _count: { select: { artworks: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -108,7 +123,7 @@ export class OrganizationsService {
   async getOrgAdminUserIds(organizationId: string | null): Promise<string[]> {
     if (!organizationId) return [];
     const admins = await this.prisma.user.findMany({
-      where: { organizationId, role: UserRole.ADMIN },
+      where: { organizationId, role: UserRole.GALLERY_ADMIN },
       select: { id: true },
     });
     return admins.map((a) => a.id);

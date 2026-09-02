@@ -36,7 +36,7 @@ export class ArtworkRemovalRequestsController {
   // Must come before ':id' so "organization" isn't swallowed as a request id.
   @Get('organization')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   listOrganizationRequests(@CurrentUser() user: JwtPayload) {
     if (!user.organizationId) {
       throw new ForbiddenException(
@@ -48,7 +48,7 @@ export class ArtworkRemovalRequestsController {
 
   @Patch(':id/decision')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.GALLERY_ADMIN)
   decide(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

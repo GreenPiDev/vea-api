@@ -10,9 +10,8 @@ datasource db {
 
 enum UserRole {
   VISITOR
-  ARTIST
-  INSTITUTION
-  ADMIN
+  SELLER
+  GALLERY_ADMIN
   SUPERADMIN
 }
 
@@ -184,8 +183,9 @@ model ArtistProfile {
   verified        Boolean  @default(false)
   createdAt       DateTime @default(now())
 
-  user     User      @relation(fields: [userId], references: [id])
-  artworks Artwork[]
+  user        User         @relation(fields: [userId], references: [id])
+  artworks    Artwork[]
+  exhibitions Exhibition[]
 }
 
 model Artwork {
@@ -228,6 +228,14 @@ model Exhibition {
   // same Organization can manage an exhibition regardless of who made it.
   curatorUserId  String
   organizationId String?
+  // Optional: the single artist this exhibition is curated around (a "solo"
+  // show). Nullable so a curator can still create a mixed/group exhibition
+  // with no pre-set artist, same as before this field existed — when unset,
+  // the artwork placement screen offers every artist in the organization,
+  // same as always. When set, it both pre-filters that screen to just this
+  // artist's artworks and surfaces as a column in the curator's exhibition
+  // table (see vea-frontend's ExhibitionForm.tsx/ExhibitionList.tsx).
+  artistProfileId String?
   title          String
   description    String?
   startDate      DateTime
@@ -236,15 +244,25 @@ model Exhibition {
   sceneConfig    Json?
   maxArtworks    Int?
   createdAt      DateTime         @default(now())
+  // Soft delete: set instead of a hard row delete so historical VisitEvent/
+  // Offer/stats data tied to this exhibition (and its seller's own records)
+  // survives a curator "removing" it. Null = active/visible; non-null =
+  // excluded from public (findPublic/findOneForView) and, by default, from
+  // the curator's own table (findOwn) — an explicit includeRemoved flag
+  // brings it back for the "Kaldırılan sergileri göster" toggle. Stats
+  // endpoints never filter on this, by design.
+  deletedAt      DateTime?
 
   curator         User                    @relation(fields: [curatorUserId], references: [id])
   organization    Organization?           @relation(fields: [organizationId], references: [id])
+  artistProfile   ArtistProfile?          @relation(fields: [artistProfileId], references: [id])
   artworkLinks    ExhibitionArtwork[]
   visitEvents     VisitEvent[]
   removalRequests ArtworkRemovalRequest[]
 
   @@index([curatorUserId])
   @@index([organizationId])
+  @@index([artistProfileId])
   @@index([status])
 }
 

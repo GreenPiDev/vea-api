@@ -19,7 +19,7 @@ export class ArtistProfilesController {
   // this is reachable the user is already provisioned into an org.
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ARTIST)
+  @Roles(UserRole.SELLER)
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateArtistProfileDto) {
     return this.artistProfiles.createForUser(user.sub, dto);
   }

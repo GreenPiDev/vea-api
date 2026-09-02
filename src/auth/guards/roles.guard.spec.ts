@@ -23,19 +23,19 @@ describe('RolesGuard', () => {
 
   it('rejects a user whose role is not in the required list', () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue(['ADMIN']),
+      getAllAndOverride: jest.fn().mockReturnValue(['GALLERY_ADMIN']),
     } as unknown as Reflector;
     const guard = new RolesGuard(reflector);
-    expect(() => guard.canActivate(makeContext('ARTIST'))).toThrow(
+    expect(() => guard.canActivate(makeContext('SELLER'))).toThrow(
       ForbiddenException,
     );
   });
 
   it('allows a user whose role is in the required list', () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue(['ADMIN']),
+      getAllAndOverride: jest.fn().mockReturnValue(['GALLERY_ADMIN']),
     } as unknown as Reflector;
     const guard = new RolesGuard(reflector);
-    expect(guard.canActivate(makeContext('ADMIN'))).toBe(true);
+    expect(guard.canActivate(makeContext('GALLERY_ADMIN'))).toBe(true);
   });
 });

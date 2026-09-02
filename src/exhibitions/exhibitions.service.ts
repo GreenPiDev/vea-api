@@ -16,10 +16,14 @@ const PUBLIC_STATUSES: ExhibitionStatus[] = ['ACTIVE', 'ENDED'];
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
-// Forward-only state machine: DRAFT -> ACTIVE -> ENDED. ENDED is terminal.
+// DRAFT <-> ACTIVE -> ENDED. ENDED stays terminal (a published-then-ended
+// show is a historical record, same reasoning as the old delete restriction
+// this replaced — see remove()). ACTIVE -> DRAFT ("Yayından Kaldır") is the
+// one backward move, added so a curator can unpublish without losing the
+// exhibition (2026-09-02).
 const ALLOWED_TRANSITIONS: Record<ExhibitionStatus, ExhibitionStatus[]> = {
   DRAFT: ['ACTIVE'],
-  ACTIVE: ['ENDED'],
+  ACTIVE: ['ENDED', 'DRAFT'],
   ENDED: [],
 };
 
@@ -43,10 +47,14 @@ export class ExhibitionsService {
     if (new Date(dto.endDate) <= new Date(dto.startDate)) {
       throw new BadRequestException('endDate must be after startDate');
     }
+    if (dto.artistProfileId) {
+      await this.assertArtistInOrganization(dto.artistProfileId, organizationId);
+    }
     return this.prisma.exhibition.create({
       data: {
         curatorUserId: userId,
         organizationId,
+        artistProfileId: dto.artistProfileId,
         title: dto.title,
         description: dto.description,
         startDate: new Date(dto.startDate),
@@ -57,9 +65,26 @@ export class ExhibitionsService {
     });
   }
 
+  // Same cross-organization guard as ArtworksService.findByOrganization —
+  // a curator may only pin an exhibition to an artist in their own org.
+  private async assertArtistInOrganization(
+    artistProfileId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const profile = await this.prisma.artistProfile.findUnique({
+      where: { id: artistProfileId },
+      select: { user: { select: { organizationId: true } } },
+    });
+    if (!profile || profile.user.organizationId !== organizationId) {
+      throw new BadRequestException(
+        'artistProfileId must belong to your own organization',
+      );
+    }
+  }
+
   findPublic(take = DEFAULT_PAGE_SIZE, skip = 0) {
     return this.prisma.exhibition.findMany({
-      where: { status: { in: PUBLIC_STATUSES } },
+      where: { status: { in: PUBLIC_STATUSES }, deletedAt: null },
       take: Math.min(take, MAX_PAGE_SIZE),
       skip,
       orderBy: { startDate: 'desc' },
@@ -71,12 +96,16 @@ export class ExhibitionsService {
   // at the same firm see and can manage each other's exhibitions. An ADMIN
   // with no organizationId (shouldn't happen in practice) sees an empty
   // list rather than every org's exhibitions or every organizationId:null
-  // orphan row.
-  async findOwn(organizationId: string | null) {
+  // orphan row. `includeRemoved` backs the curator table's "Kaldırılan
+  // sergileri göster" toggle — default false so soft-deleted rows stay
+  // hidden until explicitly asked for (see ExhibitionStatsList.tsx, which
+  // always passes true so a removal never drops exhibitions from stats).
+  async findOwn(organizationId: string | null, includeRemoved = false) {
     if (!organizationId) return [];
     return this.prisma.exhibition.findMany({
-      where: { organizationId },
+      where: { organizationId, ...(includeRemoved ? {} : { deletedAt: null }) },
       orderBy: { createdAt: 'desc' },
+      include: { artistProfile: { select: { id: true, displayName: true } } },
     });
   }
 
@@ -123,7 +152,7 @@ export class ExhibitionsService {
         },
       },
     });
-    if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status)) {
+    if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status) || exhibition.deletedAt) {
       throw new NotFoundException('Exhibition not found');
     }
     return {
@@ -186,9 +215,11 @@ export class ExhibitionsService {
           },
           data: { status: 'IN_EXHIBITION' },
         });
-      } else if (status === 'ENDED') {
-        // Reverse: only artworks still IN_EXHIBITION go back to LISTED (a SOLD
-        // artwork stays SOLD — the sale flow owns that transition, not this one).
+      } else if (status === 'ENDED' || status === 'DRAFT') {
+        // Reverse (both "ended" and "unpublished back to draft" leave this
+        // show non-live): only artworks still IN_EXHIBITION go back to
+        // LISTED (a SOLD artwork stays SOLD — the sale flow owns that
+        // transition, not this one).
         await tx.artwork.updateMany({
           where: {
             status: 'IN_EXHIBITION',
@@ -201,17 +232,34 @@ export class ExhibitionsService {
     });
   }
 
+  // Soft delete (2026-09-02, replacing the old DRAFT-only hard delete): sets
+  // deletedAt instead of removing the row, so a seller's VisitEvent/Offer/
+  // stats history tied to this exhibition survives — GET /exhibitions/mine/
+  // :id/stats never filters on deletedAt, by design. Any status can now be
+  // removed, including ACTIVE/ENDED, since nothing is actually destroyed.
   async remove(id: string, organizationId: string | null) {
     const exhibition = await this.assertOwnership(id, organizationId);
-    if (exhibition.status !== 'DRAFT') {
-      throw new ConflictException(
-        'Only a DRAFT exhibition can be deleted; it is a historical record once ACTIVE/ENDED',
-      );
+    if (exhibition.deletedAt) {
+      throw new ConflictException('Exhibition is already removed');
     }
-    await this.prisma.$transaction([
-      this.prisma.exhibitionArtwork.deleteMany({ where: { exhibitionId: id } }),
-      this.prisma.exhibition.delete({ where: { id } }),
-    ]);
+    return this.prisma.$transaction(async (tx) => {
+      // Pulling a live show out of public view shouldn't leave its artworks
+      // stuck "in exhibition" with nowhere to be seen — same reverse sync
+      // as ACTIVE -> ENDED/DRAFT in setStatus (SOLD is left untouched).
+      await tx.artwork.updateMany({
+        where: { status: 'IN_EXHIBITION', exhibitionLinks: { some: { exhibitionId: id } } },
+        data: { status: 'LISTED' },
+      });
+      return tx.exhibition.update({ where: { id }, data: { deletedAt: new Date() } });
+    });
+  }
+
+  async restore(id: string, organizationId: string | null) {
+    const exhibition = await this.assertOwnership(id, organizationId);
+    if (!exhibition.deletedAt) {
+      throw new ConflictException('Exhibition is not removed');
+    }
+    return this.prisma.exhibition.update({ where: { id }, data: { deletedAt: null } });
   }
 
   async addArtwork(
