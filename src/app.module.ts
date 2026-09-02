@@ -13,6 +13,7 @@ import { ArtistProfilesModule } from './artist-profiles/artist-profiles.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { ArtworksModule } from './artworks/artworks.module';
 import { ExhibitionsModule } from './exhibitions/exhibitions.module';
+import { ExhibitionTemplatesModule } from './exhibition-templates/exhibition-templates.module';
 import { OffersModule } from './offers/offers.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -35,6 +36,7 @@ import { ArtworkRemovalRequestsModule } from './artwork-removal-requests/artwork
     OrganizationsModule,
     ArtworksModule,
     ExhibitionsModule,
+    ExhibitionTemplatesModule,
     OffersModule,
     RealtimeModule,
     NotificationsModule,

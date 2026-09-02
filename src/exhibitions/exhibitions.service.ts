@@ -50,11 +50,13 @@ export class ExhibitionsService {
     if (dto.artistProfileId) {
       await this.assertArtistInOrganization(dto.artistProfileId, organizationId);
     }
+    const exhibitionTemplateId = await this.resolveTemplateId(dto.sceneConfig, organizationId);
     return this.prisma.exhibition.create({
       data: {
         curatorUserId: userId,
         organizationId,
         artistProfileId: dto.artistProfileId,
+        exhibitionTemplateId,
         title: dto.title,
         description: dto.description,
         startDate: new Date(dto.startDate),
@@ -63,6 +65,25 @@ export class ExhibitionsService {
         sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
       },
     });
+  }
+
+  // sceneConfig.templateId is just a free string (see scene-config.dto.ts) —
+  // it may point at a legacy static frontend template (vea-frontend's
+  // EXHIBITIONS registry, e.g. "renaissance") or a real ExhibitionTemplate
+  // row created via ExhibitionTemplatesModule. Only the latter gets a real
+  // FK set, so ExhibitionTemplatesService.findOwn's _count.exhibitions stays
+  // accurate; an unresolved/legacy id silently leaves exhibitionTemplateId
+  // null, same backward-compatible behavior as before this field existed.
+  private async resolveTemplateId(
+    sceneConfig: CreateExhibitionDto['sceneConfig'],
+    organizationId: string,
+  ): Promise<string | null> {
+    if (!sceneConfig || sceneConfig.kind !== 'template') return null;
+    const template = await this.prisma.exhibitionTemplate.findFirst({
+      where: { id: sceneConfig.templateId, organizationId },
+      select: { id: true },
+    });
+    return template?.id ?? null;
   }
 
   // Same cross-organization guard as ArtworksService.findByOrganization —
@@ -128,6 +149,7 @@ export class ExhibitionsService {
         artworkLinks: {
           include: { artwork: { include: { artistProfile: true } } },
         },
+        exhibitionTemplate: true,
       },
     });
   }
@@ -155,6 +177,7 @@ export class ExhibitionsService {
             },
           },
         },
+        exhibitionTemplate: true,
       },
     });
     if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status) || exhibition.deletedAt) {
@@ -177,7 +200,7 @@ export class ExhibitionsService {
     organizationId: string | null,
     dto: UpdateExhibitionDto,
   ) {
-    await this.assertOwnership(id, organizationId);
+    const exhibition = await this.assertOwnership(id, organizationId);
     if (
       dto.startDate &&
       dto.endDate &&
@@ -185,6 +208,9 @@ export class ExhibitionsService {
     ) {
       throw new BadRequestException('endDate must be after startDate');
     }
+    const exhibitionTemplateId = dto.sceneConfig
+      ? await this.resolveTemplateId(dto.sceneConfig, exhibition.organizationId!)
+      : undefined;
     return this.prisma.exhibition.update({
       where: { id },
       data: {
@@ -194,6 +220,7 @@ export class ExhibitionsService {
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
         maxArtworks: dto.maxArtworks,
         sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
+        exhibitionTemplateId,
       },
     });
   }

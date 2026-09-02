@@ -105,8 +105,9 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  admins      User[]
-  exhibitions Exhibition[]
+  admins              User[]
+  exhibitions         Exhibition[]
+  exhibitionTemplates ExhibitionTemplate[]
 }
 
 model User {
@@ -189,30 +190,30 @@ model ArtistProfile {
 }
 
 model Artwork {
-  id              String                 @id @default(cuid())
-  artistProfileId String
-  title           String
-  technique       String?
-  yearCreated     Int?
-  heightCm        Float
-  widthCm         Float
-  orientation     ArtworkOrientation
+  id                 String                 @id @default(cuid())
+  artistProfileId    String
+  title              String
+  technique          String?
+  yearCreated        Int?
+  heightCm           Float
+  widthCm            Float
+  orientation        ArtworkOrientation
   /// Whether the artist's uploaded image already shows its own physical frame — false means the frontend renders a default modern-black frame mesh around the canvas in the 3D scene.
-  framed          Boolean                @default(false)
-  story           String?
-  conditionStatus ArtworkConditionStatus @default(ORIGINAL)
-  conditionNotes  String?
-  note            String?
-  category        ArtworkCategory
-  priceAmount     Int
+  framed             Boolean                @default(false)
+  story              String?
+  conditionStatus    ArtworkConditionStatus @default(ORIGINAL)
+  conditionNotes     String?
+  note               String?
+  category           ArtworkCategory
+  priceAmount        Int
   /// Artist-set cap (0-100, whole percent) on how far a buyer's offer may undercut priceAmount — null means no floor, any offer amount is accepted. Enforced in OffersService.create (minimum = priceAmount * (1 - maxDiscountPercent/100), rounded up) so it can't be bypassed by calling the API directly, not just a frontend UI hint.
   maxDiscountPercent Int?
-  currency        String
-  imageUrl        String
-  model3dUrl      String?
-  status          ArtworkStatus          @default(DRAFT)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  currency           String
+  imageUrl           String
+  model3dUrl         String?
+  status             ArtworkStatus          @default(DRAFT)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   artistProfile   ArtistProfile           @relation(fields: [artistProfileId], references: [id])
   exhibitionLinks ExhibitionArtwork[]
@@ -225,13 +226,13 @@ model Artwork {
 }
 
 model Exhibition {
-  id             String           @id @default(cuid())
+  id                   String           @id @default(cuid())
   // Who literally clicked "create" — audit trail only. Management access
   // (GET /exhibitions/mine, update/status/delete/artwork placement) is
   // gated by organizationId below, not this field, so any ADMIN in the
   // same Organization can manage an exhibition regardless of who made it.
-  curatorUserId  String
-  organizationId String?
+  curatorUserId        String
+  organizationId       String?
   // Optional: the single artist this exhibition is curated around (a "solo"
   // show). Nullable so a curator can still create a mixed/group exhibition
   // with no pre-set artist, same as before this field existed — when unset,
@@ -239,15 +240,22 @@ model Exhibition {
   // same as always. When set, it both pre-filters that screen to just this
   // artist's artworks and surfaces as a column in the curator's exhibition
   // table (see vea-frontend's ExhibitionForm.tsx/ExhibitionList.tsx).
-  artistProfileId String?
-  title          String
-  description    String?
-  startDate      DateTime
-  endDate        DateTime
-  status         ExhibitionStatus @default(DRAFT)
-  sceneConfig    Json?
-  maxArtworks    Int?
-  createdAt      DateTime         @default(now())
+  artistProfileId      String?
+  // Set when sceneConfig.kind === 'template' AND templateId resolves to a
+  // real ExhibitionTemplate row owned by this exhibition's organization —
+  // lets a template's usage count be computed via a plain Prisma _count
+  // (see ExhibitionTemplatesService.findOwn) instead of scanning sceneConfig
+  // JSON. Null for the legacy static frontend templates (vea-frontend's
+  // EXHIBITIONS registry, e.g. "renaissance") and for custom rooms.
+  exhibitionTemplateId String?
+  title                String
+  description          String?
+  startDate            DateTime
+  endDate              DateTime
+  status               ExhibitionStatus @default(DRAFT)
+  sceneConfig          Json?
+  maxArtworks          Int?
+  createdAt            DateTime         @default(now())
   // Soft delete: set instead of a hard row delete so historical VisitEvent/
   // Offer/stats data tied to this exhibition (and its seller's own records)
   // survives a curator "removing" it. Null = active/visible; non-null =
@@ -255,19 +263,58 @@ model Exhibition {
   // the curator's own table (findOwn) — an explicit includeRemoved flag
   // brings it back for the "Kaldırılan sergileri göster" toggle. Stats
   // endpoints never filter on this, by design.
-  deletedAt      DateTime?
+  deletedAt            DateTime?
 
-  curator         User                    @relation(fields: [curatorUserId], references: [id])
-  organization    Organization?           @relation(fields: [organizationId], references: [id])
-  artistProfile   ArtistProfile?          @relation(fields: [artistProfileId], references: [id])
-  artworkLinks    ExhibitionArtwork[]
-  visitEvents     VisitEvent[]
-  removalRequests ArtworkRemovalRequest[]
+  curator            User                    @relation(fields: [curatorUserId], references: [id])
+  organization       Organization?           @relation(fields: [organizationId], references: [id])
+  artistProfile      ArtistProfile?          @relation(fields: [artistProfileId], references: [id])
+  exhibitionTemplate ExhibitionTemplate?     @relation(fields: [exhibitionTemplateId], references: [id])
+  artworkLinks       ExhibitionArtwork[]
+  visitEvents        VisitEvent[]
+  removalRequests    ArtworkRemovalRequest[]
 
   @@index([curatorUserId])
   @@index([organizationId])
   @@index([artistProfileId])
+  @@index([exhibitionTemplateId])
   @@index([status])
+}
+
+// A named, reusable room preset (size/wall height/color+texture theme) that
+// an organization's admins can create and pick when creating an Exhibition
+// (sceneConfig.kind:'template', templateId = this row's id) — the
+// backend-driven counterpart to vea-frontend's static EXHIBITIONS registry
+// (4 hardcoded rooms), which keeps working unchanged for legacy exhibitions.
+// theme stores the full derived ExhibitionTheme (see vea-api's
+// exhibition-templates/theme.ts, mirrored from vea-frontend's
+// backendAdapter.ts buildCustomTheme()) so the frontend can render it
+// exactly like a static EXHIBITIONS[].theme entry with no extra logic.
+model ExhibitionTemplate {
+  id               String   @id @default(cuid())
+  organizationId   String
+  name             String
+  subtitle         String?
+  // Discriminated union, same shape/spirit as Exhibition.sceneConfig:
+  // {kind:'rectangle', width, depth} or {kind:'custom', cells:{x,z}[],
+  // spawn:{x,z,yaw}} — see vea-api's exhibition-templates/dto/room-shape.dto.ts.
+  // Opaque Json column (no migration for shape changes), validated at the
+  // DTO layer.
+  roomShape        Json
+  wallHeight       Float
+  wallColor        String
+  floorColor       String
+  ceilingColor     String
+  floorTextureId   String?
+  wallTextureId    String?
+  ceilingTextureId String?
+  theme            Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  exhibitions  Exhibition[]
+
+  @@index([organizationId])
 }
 
 model ExhibitionArtwork {

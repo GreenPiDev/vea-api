@@ -29,8 +29,14 @@ import {
  *   ExhibitionArtwork.positionData below).
  */
 
-const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+// Exported so exhibition-templates/dto/create-exhibition-template.dto.ts can
+// validate its own wallColor/floorColor/ceilingColor/textureIds fields the
+// same way CustomSceneConfigDto does, without duplicating the regex/DTO.
+export const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+// GridCellDto/SpawnDto are also reused by exhibition-templates/dto/room-shape.dto.ts
+// (a template's "custom" room shape is drawn with the exact same grid UI as
+// a custom exhibition room) — exported so that module doesn't redefine them.
 export class GridCellDto {
   @IsNumber()
   x: number;
