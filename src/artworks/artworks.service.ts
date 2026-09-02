@@ -77,7 +77,17 @@ export class ArtworksService {
       take: Math.min(take, MAX_PAGE_SIZE),
       skip,
       orderBy: { createdAt: 'desc' },
-      include: { artistProfile: true },
+      // exhibitionLinks lets the curator's placement picker
+      // (ExhibitionArtworkPlacement.tsx) tell "never placed anywhere" apart
+      // from "already placed in a different exhibition" — an artwork can
+      // only ever be in one exhibition at a time (addArtwork's own
+      // findFirst({where:{artworkId}}) check), so the picker shows the
+      // latter grayed out with the other exhibition's title instead of
+      // silently omitting it or letting the curator hit a 409.
+      include: {
+        artistProfile: true,
+        exhibitionLinks: { include: { exhibition: { select: { id: true, title: true } } } },
+      },
     });
   }
 

@@ -105,7 +105,12 @@ export class ExhibitionsService {
     return this.prisma.exhibition.findMany({
       where: { organizationId, ...(includeRemoved ? {} : { deletedAt: null }) },
       orderBy: { createdAt: 'desc' },
-      include: { artistProfile: { select: { id: true, displayName: true } } },
+      // _count.artworkLinks feeds ExhibitionList.tsx's "eser sayısı" column
+      // — a single query, no per-row round-trip.
+      include: {
+        artistProfile: { select: { id: true, displayName: true } },
+        _count: { select: { artworkLinks: true } },
+      },
     });
   }
 
