@@ -4,6 +4,7 @@ import {
   ArtworkOrientation,
 } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -45,6 +46,14 @@ export class CreateArtworkDto {
   @IsEnum(ArtworkOrientation)
   orientation: ArtworkOrientation;
 
+  // Whether the artist's uploaded image already includes its own physical
+  // frame. false means the 3D scene adds a default modern-black frame mesh
+  // around the canvas (see vea-frontend's Artwork.tsx/backendAdapter.ts);
+  // true means we render the image as-is and just say "framed" in the
+  // artwork detail card, trusting the photo already shows a frame.
+  @IsBoolean()
+  framed: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(10000)
@@ -70,6 +79,15 @@ export class CreateArtworkDto {
   @IsInt()
   @IsPositive()
   priceAmount: number;
+
+  // Whole-percent cap on how far a buyer's offer may undercut priceAmount —
+  // omitted/undefined means no floor (see Artwork.maxDiscountPercent's
+  // schema comment for the enforcement side, in OffersService.create).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxDiscountPercent?: number;
 
   @IsIn(SUPPORTED_CURRENCIES)
   currency: SupportedCurrency;

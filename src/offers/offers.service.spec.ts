@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -16,12 +17,18 @@ describe('OffersService', () => {
   const otherId = 'user-other';
   const orgId = 'org-1';
 
-  const artwork = (status = 'LISTED') => ({
+  const artwork = (
+    status = 'LISTED',
+    overrides: Record<string, unknown> = {},
+  ) => ({
     id: 'artwork-1',
     title: 'Test Artwork',
     currency: 'TRY',
+    priceAmount: 100_000,
+    maxDiscountPercent: null,
     status,
     artistProfile: { userId: sellerId, user: { organizationId: orgId } },
+    ...overrides,
   });
 
   const offerWithStatus = (
@@ -209,6 +216,31 @@ describe('OffersService', () => {
       await expect(
         service.create(buyerId, 'artwork-1', { amount: 50_000 }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects an offer below the artwork-set minimum (priceAmount * (1 - maxDiscountPercent/100))', async () => {
+      // price 100_000, maxDiscountPercent 40 -> minimum is 60_000
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artwork('LISTED', { maxDiscountPercent: 40 }),
+      );
+      await expect(
+        service.create(buyerId, 'artwork-1', { amount: 59_999 }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.offer.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts an offer exactly at the artwork-set minimum', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artwork('LISTED', { maxDiscountPercent: 40 }),
+      );
+      await service.create(buyerId, 'artwork-1', { amount: 60_000 });
+      expect(prisma.offer.create).toHaveBeenCalled();
+    });
+
+    it('allows any offer amount when maxDiscountPercent is not set', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(artwork('LISTED'));
+      await service.create(buyerId, 'artwork-1', { amount: 1 });
+      expect(prisma.offer.create).toHaveBeenCalled();
     });
 
     it('404s on a DRAFT/ARCHIVED artwork', async () => {

@@ -197,12 +197,16 @@ model Artwork {
   heightCm        Float
   widthCm         Float
   orientation     ArtworkOrientation
+  /// Whether the artist's uploaded image already shows its own physical frame — false means the frontend renders a default modern-black frame mesh around the canvas in the 3D scene.
+  framed          Boolean                @default(false)
   story           String?
   conditionStatus ArtworkConditionStatus @default(ORIGINAL)
   conditionNotes  String?
   note            String?
   category        ArtworkCategory
   priceAmount     Int
+  /// Artist-set cap (0-100, whole percent) on how far a buyer's offer may undercut priceAmount — null means no floor, any offer amount is accepted. Enforced in OffersService.create (minimum = priceAmount * (1 - maxDiscountPercent/100), rounded up) so it can't be bypassed by calling the API directly, not just a frontend UI hint.
+  maxDiscountPercent Int?
   currency        String
   imageUrl        String
   model3dUrl      String?

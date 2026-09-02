@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -83,6 +84,17 @@ export class OffersService {
     });
     if (approvedDecision) {
       throw new ConflictException('This artwork has already been sold');
+    }
+
+    if (artwork.maxDiscountPercent != null) {
+      const minAmount = Math.ceil(
+        artwork.priceAmount * (1 - artwork.maxDiscountPercent / 100),
+      );
+      if (dto.amount < minAmount) {
+        throw new BadRequestException(
+          `Offer must be at least ${minAmount} ${artwork.currency}`,
+        );
+      }
     }
 
     const offer = await this.prisma.offer.create({
