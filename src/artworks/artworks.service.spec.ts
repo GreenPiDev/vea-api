@@ -6,7 +6,7 @@ import {
 import { ArtworksService } from './artworks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
-import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
+import { R2Service } from '../common/r2/r2.service';
 
 describe('ArtworksService', () => {
   const ownerUserId = 'user-owner';
@@ -34,11 +34,8 @@ describe('ArtworksService', () => {
   let artistProfiles: {
     getOwnOrThrow: jest.Mock<Promise<typeof profile>, [string]>;
   };
-  let cloudinary: {
-    uploadImage: jest.Mock<
-      Promise<string>,
-      [unknown, string, ('image' | 'auto')?]
-    >;
+  let r2: {
+    uploadImage: jest.Mock<Promise<string>, [unknown, string]>;
   };
   let service: ArtworksService;
 
@@ -73,17 +70,17 @@ describe('ArtworksService', () => {
         .fn<Promise<typeof profile>, [string]>()
         .mockResolvedValue(profile),
     };
-    cloudinary = {
+    r2 = {
       uploadImage: jest
-        .fn<Promise<string>, [unknown, string, ('image' | 'auto')?]>()
+        .fn<Promise<string>, [unknown, string]>()
         .mockResolvedValue(
-          'https://res.cloudinary.com/test/image/upload/v1/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+          'https://pub-test.r2.dev/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
         ),
     };
     service = new ArtworksService(
       prisma as unknown as PrismaService,
       artistProfiles as unknown as ArtistProfilesService,
-      cloudinary as unknown as CloudinaryService,
+      r2 as unknown as R2Service,
     );
   });
 
@@ -250,10 +247,10 @@ describe('ArtworksService', () => {
       buffer: Buffer.from('x'),
     } as Express.Multer.File;
 
-    it('slugifies the caller-owned User.name (Turkish chars) into the Cloudinary folder', async () => {
+    it('slugifies the caller-owned User.name (Turkish chars) into the R2 folder', async () => {
       await service.uploadImage(ownerUserId, file);
 
-      expect(cloudinary.uploadImage).toHaveBeenCalledWith(
+      expect(r2.uploadImage).toHaveBeenCalledWith(
         file,
         'artworks/mustafa-akagunduz',
       );
@@ -267,15 +264,15 @@ describe('ArtworksService', () => {
 
       await service.uploadImage(ownerUserId, file);
 
-      expect(cloudinary.uploadImage).toHaveBeenCalledWith(
+      expect(r2.uploadImage).toHaveBeenCalledWith(
         file,
         'artworks/owner-artist',
       );
     });
 
-    it('returns the secure_url from Cloudinary', async () => {
+    it('returns the public URL from R2', async () => {
       await expect(service.uploadImage(ownerUserId, file)).resolves.toEqual({
-        url: 'https://res.cloudinary.com/test/image/upload/v1/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+        url: 'https://pub-test.r2.dev/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
       });
     });
 

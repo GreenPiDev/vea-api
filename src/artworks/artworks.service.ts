@@ -7,7 +7,7 @@ import {
 import { ArtworkStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
-import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
+import { R2Service } from '../common/r2/r2.service';
 import { slugify } from '../common/slugify';
 import { CreateArtworkDto } from './dto/create-artwork.dto';
 import { UpdateArtworkDto } from './dto/update-artwork.dto';
@@ -22,7 +22,7 @@ export class ArtworksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly artistProfiles: ArtistProfilesService,
-    private readonly cloudinary: CloudinaryService,
+    private readonly r2: R2Service,
   ) {}
 
   async create(userId: string, dto: CreateArtworkDto) {
@@ -32,7 +32,7 @@ export class ArtworksService {
     });
   }
 
-  // Folder-per-artist in Cloudinary, keyed off the artist's own User.name
+  // Folder-per-artist in R2, keyed off the artist's own User.name
   // (not the editable-elsewhere ArtistProfile.displayName) since artists
   // can't rename themselves post-signup, so the folder stays stable across
   // every upload without needing a persisted slug column.
@@ -42,7 +42,7 @@ export class ArtworksService {
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
     ]);
     const slug = slugify(user.name ?? profile.displayName);
-    const url = await this.cloudinary.uploadImage(file, `artworks/${slug}`);
+    const url = await this.r2.uploadImage(file, `artworks/${slug}`);
     return { url };
   }
 

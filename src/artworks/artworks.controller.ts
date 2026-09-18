@@ -82,7 +82,7 @@ export class ArtworksController {
     return this.artworks.create(user.sub, dto);
   }
 
-  // Returns a Cloudinary secure_url the caller then submits as
+  // Returns an R2 public object URL the caller then submits as
   // CreateArtworkDto.imageUrl / UpdateArtworkDto.imageUrl — this endpoint
   // never touches the Artwork row itself, upload and create/update stay
   // two separate steps (same shape as ASSID's member-logo upload).

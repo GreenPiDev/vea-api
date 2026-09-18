@@ -40,15 +40,23 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  CLOUDINARY_CLOUD_NAME?: string;
+  R2_ACCOUNT_ID?: string;
 
   @IsString()
   @IsOptional()
-  CLOUDINARY_API_KEY?: string;
+  R2_ACCESS_KEY_ID?: string;
 
   @IsString()
   @IsOptional()
-  CLOUDINARY_API_SECRET?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  R2_BUCKET_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  R2_PUBLIC_URL?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

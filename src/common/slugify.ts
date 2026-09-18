@@ -16,7 +16,7 @@ const TURKISH_CHAR_MAP: Record<string, string> = {
 
 // Turkish-aware slugify: "Mustafa Akagündüz" -> "mustafa-akagunduz". Used to
 // derive a stable, filesystem/URL-safe folder name from a person's display
-// name (Cloudinary folder paths, not a public URL slug).
+// name (R2 folder paths, not a public URL slug).
 export function slugify(input: string): string {
   return input
     .split('')
