@@ -18,6 +18,7 @@ import { OffersModule } from './offers/offers.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ArtworkRemovalRequestsModule } from './artwork-removal-requests/artwork-removal-requests.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ArtworkRemovalRequestsModule } from './artwork-removal-requests/artwork
     RealtimeModule,
     NotificationsModule,
     ArtworkRemovalRequestsModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [

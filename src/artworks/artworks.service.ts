@@ -8,6 +8,7 @@ import { ArtworkStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 import { R2Service } from '../common/r2/r2.service';
+import { FileUrlService } from '../common/r2/file-url.service';
 import { slugify } from '../common/slugify';
 import { CreateArtworkDto } from './dto/create-artwork.dto';
 import { UpdateArtworkDto } from './dto/update-artwork.dto';
@@ -23,6 +24,7 @@ export class ArtworksService {
     private readonly prisma: PrismaService,
     private readonly artistProfiles: ArtistProfilesService,
     private readonly r2: R2Service,
+    private readonly fileUrl: FileUrlService,
   ) {}
 
   async create(userId: string, dto: CreateArtworkDto) {
@@ -42,8 +44,8 @@ export class ArtworksService {
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
     ]);
     const slug = slugify(user.name ?? profile.displayName);
-    const url = await this.r2.uploadImage(file, `artworks/${slug}`);
-    return { url };
+    const key = await this.r2.uploadImage(file, `artworks/${slug}`);
+    return { url: this.fileUrl.build(key) };
   }
 
   findPublic(take = DEFAULT_PAGE_SIZE, skip = 0) {

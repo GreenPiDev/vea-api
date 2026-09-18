@@ -61,9 +61,11 @@ class EnvironmentVariables {
   @IsOptional()
   R2_BUCKET_NAME?: string;
 
+  // This app's own public base URL — used to build /files?key=... links
+  // (see FileUrlService) instead of R2's unreliable r2.dev public domain.
   @IsString()
   @IsOptional()
-  R2_PUBLIC_URL?: string;
+  API_PUBLIC_URL?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

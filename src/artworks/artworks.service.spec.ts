@@ -7,6 +7,7 @@ import { ArtworksService } from './artworks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 import { R2Service } from '../common/r2/r2.service';
+import { FileUrlService } from '../common/r2/file-url.service';
 
 describe('ArtworksService', () => {
   const ownerUserId = 'user-owner';
@@ -74,13 +75,17 @@ describe('ArtworksService', () => {
       uploadImage: jest
         .fn<Promise<string>, [unknown, string]>()
         .mockResolvedValue(
-          'https://pub-test.r2.dev/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+          'VEA/development/artworks/mustafa-akagunduz/abc.jpg',
         ),
+    };
+    const fileUrl = {
+      build: (key: string) => `https://api.test/files?key=${key}`,
     };
     service = new ArtworksService(
       prisma as unknown as PrismaService,
       artistProfiles as unknown as ArtistProfilesService,
       r2 as unknown as R2Service,
+      fileUrl as unknown as FileUrlService,
     );
   });
 
@@ -270,9 +275,9 @@ describe('ArtworksService', () => {
       );
     });
 
-    it('returns the public URL from R2', async () => {
+    it('returns the proxied file URL built from the R2 key', async () => {
       await expect(service.uploadImage(ownerUserId, file)).resolves.toEqual({
-        url: 'https://pub-test.r2.dev/VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+        url: 'https://api.test/files?key=VEA/development/artworks/mustafa-akagunduz/abc.jpg',
       });
     });
 

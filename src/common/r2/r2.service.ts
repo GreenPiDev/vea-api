@@ -1,19 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import type { Readable } from 'stream';
 import { randomUUID } from 'crypto';
+
+export interface StoredObject {
+  body: Readable;
+  contentType: string | undefined;
+}
 
 @Injectable()
 export class R2Service {
   private readonly client: S3Client;
   private readonly bucket: string;
-  private readonly publicUrl: string;
   private readonly envFolder: string;
 
   constructor(private readonly config: ConfigService) {
     const accountId = config.get<string>('R2_ACCOUNT_ID');
     this.bucket = config.get<string>('R2_BUCKET_NAME')!;
-    this.publicUrl = config.get<string>('R2_PUBLIC_URL')!.replace(/\/$/, '');
 
     this.client = new S3Client({
       region: 'auto',
@@ -38,6 +46,10 @@ export class R2Service {
         : 'development';
   }
 
+  // Returns the object key (not a URL) — R2's public r2.dev domain is
+  // unreliable for real browsers (ERR_SSL_PROTOCOL_ERROR), so the app never
+  // links to it directly. FilesController proxies object bytes through our
+  // own domain instead; see FileUrlService for the URL the key turns into.
   async uploadImage(
     file: Express.Multer.File,
     folder: string,
@@ -56,6 +68,22 @@ export class R2Service {
       }),
     );
 
-    return `${this.publicUrl}/${key}`;
+    return key;
+  }
+
+  async getObject(key: string): Promise<StoredObject> {
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return {
+        body: result.Body as Readable,
+        contentType: result.ContentType,
+      };
+    } catch {
+      // R2/S3 throws NoSuchKey for a missing object — collapse any failure
+      // here into a 404 rather than leaking storage-layer error details.
+      throw new NotFoundException('File not found');
+    }
   }
 }
