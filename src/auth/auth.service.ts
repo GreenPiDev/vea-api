@@ -22,7 +22,11 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async requestCode(email: string): Promise<void> {
+  // Returns the plaintext code so the controller can echo it back in the
+  // response — temporary, only while MailService is a logging stub with no
+  // real provider wired up (pre-launch). Remove this return value (and its
+  // use in AuthController) once real emails go out.
+  async requestCode(email: string): Promise<string> {
     const user = await this.users.findOrCreateByEmail(email);
 
     // Invalidate any still-usable prior codes so only the newest one works.
@@ -44,6 +48,7 @@ export class AuthService {
     });
 
     await this.mail.sendVerificationCode(email, code);
+    return code;
   }
 
   async verifyCode(

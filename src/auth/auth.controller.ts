@@ -25,9 +25,13 @@ export class AuthController {
   @Post('request-code')
   @HttpCode(202)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })
-  async requestCode(@Body() dto: RequestCodeDto): Promise<{ status: string }> {
-    await this.auth.requestCode(dto.email);
-    return { status: 'sent' };
+  async requestCode(
+    @Body() dto: RequestCodeDto,
+  ): Promise<{ status: string; devCode: string }> {
+    // devCode: pre-launch convenience since MailService is still a stub —
+    // remove once a real provider sends the email instead.
+    const devCode = await this.auth.requestCode(dto.email);
+    return { status: 'sent', devCode };
   }
 
   @Post('verify-code')
