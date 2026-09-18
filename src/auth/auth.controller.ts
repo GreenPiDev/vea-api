@@ -6,7 +6,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RequestCodeDto } from './dto/request-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
@@ -22,9 +22,13 @@ export class AuthController {
     private readonly users: UsersService,
   ) {}
 
+  // Rate limiting disabled for now (pre-launch) — the previous 3-per-10min
+  // limit meant testers had to restart the backend to request a new code.
+  // Re-enable (@Throttle({ default: { limit: 3, ttl: 600_000 } })) before
+  // real launch — abuse/spam protection is still on the security backlog.
   @Post('request-code')
   @HttpCode(202)
-  @Throttle({ default: { limit: 3, ttl: 600_000 } })
+  @SkipThrottle()
   async requestCode(
     @Body() dto: RequestCodeDto,
   ): Promise<{ status: string; devCode: string }> {
