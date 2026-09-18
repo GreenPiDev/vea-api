@@ -1,0 +1,60 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - production
+
+# Prevent two deploys from racing on the same VPS state.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          echo "$VPS_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Deploy to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          ssh -i "$HOME/.ssh/deploy_key" -p "${VPS_PORT:-22}" "$VPS_USER@$VPS_HOST" bash -s <<'REMOTE_SCRIPT'
+            set -euo pipefail
+
+            cd ~/apps/vea-api
+
+            echo "==> Updating repository to origin/production"
+            git fetch origin production
+            git checkout production
+            git reset --hard origin/production
+
+            echo "==> Building image and restarting container"
+            ./deploy.sh
+
+            echo "==> Waiting for container to come up"
+            sleep 5
+            docker ps --filter "name=vea-api"
+            docker logs vea-api --tail 50
+
+            echo "==> Health check"
+            curl -fsS http://127.0.0.1:4300/health > /dev/null
+            echo "Health check OK"
+          REMOTE_SCRIPT
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key"
