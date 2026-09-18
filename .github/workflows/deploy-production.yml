@@ -46,13 +46,22 @@ jobs:
             ./deploy.sh
 
             echo "==> Waiting for container to come up"
-            sleep 5
             docker ps --filter "name=vea-api"
-            docker logs vea-api --tail 50
 
             echo "==> Health check"
-            curl -fsS http://127.0.0.1:4300/health > /dev/null
-            echo "Health check OK"
+            for i in $(seq 1 15); do
+              if curl -fsS http://127.0.0.1:4300/health > /dev/null; then
+                echo "Health check OK"
+                break
+              fi
+              if [ "$i" -eq 15 ]; then
+                echo "Health check failed after 30s"
+                docker logs vea-api --tail 80
+                exit 1
+              fi
+              sleep 2
+            done
+            docker logs vea-api --tail 50
           REMOTE_SCRIPT
 
       - name: Clean up SSH key
