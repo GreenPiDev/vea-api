@@ -9,6 +9,7 @@ import {
 import type { Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { SOCKET_EVENTS } from '../realtime/socket-events';
+import { getCorsOrigins } from '../config/cors-origins';
 
 function userRoom(userId: string): string {
   return `user:${userId}`;
@@ -26,7 +27,7 @@ function userRoom(userId: string): string {
  * this particular socket never joins a `user:<id>` room and simply never
  * receives notifications — it does not disconnect or error.
  */
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({ cors: { origin: getCorsOrigins() } })
 export class NotificationsGateway implements OnGatewayConnection {
   private readonly logger = new Logger(NotificationsGateway.name);
 

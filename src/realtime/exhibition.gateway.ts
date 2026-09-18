@@ -10,6 +10,7 @@ import {
 import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { SOCKET_EVENTS } from './socket-events';
+import { getCorsOrigins } from '../config/cors-origins';
 
 interface JoinExhibitionPayload {
   exhibitionId: string;
@@ -48,7 +49,7 @@ function socketData(client: Socket): SocketData {
  * Event names all come from ./socket-events.ts (SOCKET_EVENTS) — never a
  * string literal here — see that file's header comment for why.
  */
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({ cors: { origin: getCorsOrigins() } })
 export class ExhibitionGateway implements OnGatewayDisconnect {
   private readonly logger = new Logger(ExhibitionGateway.name);
 

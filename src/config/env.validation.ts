@@ -38,6 +38,13 @@ class EnvironmentVariables {
   @IsOptional()
   REDIS_URL: string = 'redis://localhost:6379';
 
+  // Comma-separated list of allowed frontend origins (REST CORS + WebSocket
+  // gateways) — see src/config/cors-origins.ts. Defaults to the Vite dev
+  // server origin when unset.
+  @IsString()
+  @IsOptional()
+  CORS_ORIGIN?: string;
+
   @IsString()
   @IsOptional()
   R2_ACCOUNT_ID?: string;
