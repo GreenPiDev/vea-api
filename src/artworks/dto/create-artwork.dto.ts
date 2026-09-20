@@ -92,10 +92,10 @@ export class CreateArtworkDto {
   @IsIn(SUPPORTED_CURRENCIES)
   currency: SupportedCurrency;
 
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   imageUrl: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   model3dUrl?: string;
 }
