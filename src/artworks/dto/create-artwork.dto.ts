@@ -26,6 +26,11 @@ export class CreateArtworkDto {
   @MaxLength(200)
   title: string;
 
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  artistDisplayName: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

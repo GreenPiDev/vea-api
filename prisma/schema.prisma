@@ -193,6 +193,8 @@ model Artwork {
   id                 String                 @id @default(cuid())
   artistProfileId    String
   title              String
+  /// Free-text override of the displayed artist name for this artwork specifically — separate from ArtistProfile.displayName (e.g. representation/collection pieces where the credited name differs from the uploading profile's own name). Required, unlike ArtistProfile.displayName's role as the account owner's own name.
+  artistDisplayName  String
   technique          String?
   yearCreated        Int?
   heightCm           Float
