@@ -9,7 +9,13 @@ export class PrismaService
 {
   constructor() {
     super({
-      adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+      adapter: new PrismaPg({
+        connectionString: process.env.DATABASE_URL,
+        // node-postgres's pg.Pool (what this adapter wraps) defaults `max` to 10 regardless
+        // of any `connection_limit` query param on DATABASE_URL — that param is a convention
+        // of Prisma's own (non-adapter) connector, silently ignored here. Must be set explicitly.
+        max: Number(process.env.DB_POOL_MAX) || 10,
+      }),
     });
   }
 

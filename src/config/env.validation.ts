@@ -73,6 +73,12 @@ class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   RATE_LIMIT_MAX: number = 60;
+
+  // Max size of the pg.Pool the Prisma driver adapter wraps, see prisma.service.ts.
+  @IsNumber()
+  @Min(1)
+  @IsOptional()
+  DB_POOL_MAX: number = 10;
 }
 
 export function validate(config: Record<string, unknown>) {
