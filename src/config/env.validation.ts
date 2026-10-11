@@ -66,6 +66,13 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   API_PUBLIC_URL?: string;
+
+  // Global ThrottlerModule limit (requests per IP per 60s), see app.module.ts.
+  // Overridable so a load test can raise it temporarily without a code change.
+  @IsNumber()
+  @Min(1)
+  @IsOptional()
+  RATE_LIMIT_MAX: number = 60;
 }
 
 export function validate(config: Record<string, unknown>) {
