@@ -1,5 +1,14 @@
 import { Type, TypeOptions } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDefined, IsIn, IsNumber, Max, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsDefined,
+  IsIn,
+  IsNumber,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { GridCellDto, SpawnDto } from '../../exhibitions/dto/scene-config.dto';
 
 /**

@@ -40,7 +40,10 @@ export class ExhibitionsController {
     @CurrentUser() user: JwtPayload,
     @Query('includeRemoved') includeRemoved?: string,
   ) {
-    return this.exhibitions.findOwn(user.organizationId, includeRemoved === 'true');
+    return this.exhibitions.findOwn(
+      user.organizationId,
+      includeRemoved === 'true',
+    );
   }
 
   @Get('mine/:id')
@@ -125,7 +128,12 @@ export class ExhibitionsController {
     @Param('artworkId') artworkId: string,
     @Body() dto: UpdateExhibitionArtworkDto,
   ) {
-    return this.exhibitions.updateArtworkLink(id, artworkId, user.organizationId, dto);
+    return this.exhibitions.updateArtworkLink(
+      id,
+      artworkId,
+      user.organizationId,
+      dto,
+    );
   }
 
   @Delete(':id/artworks/:artworkId')

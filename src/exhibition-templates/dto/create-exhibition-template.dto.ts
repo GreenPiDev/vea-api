@@ -10,8 +10,15 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { CustomTextureIdsDto, HEX_COLOR } from '../../exhibitions/dto/scene-config.dto';
-import { CustomRoomShapeDto, ROOM_SHAPE_TYPE_OPTIONS, RectangleRoomShapeDto } from './room-shape.dto';
+import {
+  CustomTextureIdsDto,
+  HEX_COLOR,
+} from '../../exhibitions/dto/scene-config.dto';
+import {
+  CustomRoomShapeDto,
+  ROOM_SHAPE_TYPE_OPTIONS,
+  RectangleRoomShapeDto,
+} from './room-shape.dto';
 
 // Same wall-height bounds as CustomSceneConfigDto's wallHeight, so a
 // template can't be created with a room too short to stand in or absurdly

@@ -36,7 +36,10 @@ export class OrganizationsService {
 
   async update(id: string, dto: UpdateOrganizationDto) {
     await this.assertExists(id);
-    return this.prisma.organization.update({ where: { id }, data: { name: dto.name } });
+    return this.prisma.organization.update({
+      where: { id },
+      data: { name: dto.name },
+    });
   }
 
   private async assertExists(organizationId: string) {

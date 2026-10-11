@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -29,7 +37,10 @@ export class ExhibitionTemplatesController {
   }
 
   @Post()
-  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateExhibitionTemplateDto) {
+  create(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateExhibitionTemplateDto,
+  ) {
     return this.templates.create(user.organizationId, dto);
   }
 

@@ -88,7 +88,9 @@ export class ArtworksService {
       // silently omitting it or letting the curator hit a 409.
       include: {
         artistProfile: true,
-        exhibitionLinks: { include: { exhibition: { select: { id: true, title: true } } } },
+        exhibitionLinks: {
+          include: { exhibition: { select: { id: true, title: true } } },
+        },
       },
     });
   }

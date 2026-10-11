@@ -50,11 +50,15 @@ export class NotificationsGateway implements OnGatewayConnection {
       await client.join(userRoom(payload.sub));
     } catch (err) {
       // Expired/invalid token — treat the same as no token, stay anonymous.
-      this.logger.debug(`Socket auth failed, staying anonymous: ${String(err)}`);
+      this.logger.debug(
+        `Socket auth failed, staying anonymous: ${String(err)}`,
+      );
     }
   }
 
   emitToUser(userId: string, notification: unknown): void {
-    this.server.to(userRoom(userId)).emit(SOCKET_EVENTS.NotificationCreated, notification);
+    this.server
+      .to(userRoom(userId))
+      .emit(SOCKET_EVENTS.NotificationCreated, notification);
   }
 }

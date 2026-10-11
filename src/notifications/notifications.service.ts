@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsGateway } from './notifications.gateway';
@@ -21,14 +25,16 @@ export class NotificationsService {
 
   async create(userId: string, type: string, payload: object) {
     const notification = await this.prisma.notification.create({
-      data: { userId, type, payload: payload as Prisma.InputJsonValue },
+      data: { userId, type, payload: payload },
     });
     this.gateway.emitToUser(userId, notification);
     return notification;
   }
 
   async createForMany(userIds: string[], type: string, payload: object) {
-    await Promise.all(userIds.map((userId) => this.create(userId, type, payload)));
+    await Promise.all(
+      userIds.map((userId) => this.create(userId, type, payload)),
+    );
   }
 
   findMine(userId: string) {
@@ -44,7 +50,9 @@ export class NotificationsService {
   }
 
   async markRead(id: string, userId: string) {
-    const notification = await this.prisma.notification.findUnique({ where: { id } });
+    const notification = await this.prisma.notification.findUnique({
+      where: { id },
+    });
     if (!notification) throw new NotFoundException('Notification not found');
     if (notification.userId !== userId) {
       throw new ForbiddenException('This notification does not belong to you');

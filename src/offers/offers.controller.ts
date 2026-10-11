@@ -48,7 +48,9 @@ export class OffersController {
   @Roles(UserRole.GALLERY_ADMIN)
   listOrganizationOffers(@CurrentUser() user: JwtPayload) {
     if (!user.organizationId) {
-      throw new ForbiddenException('This admin is not assigned to an organization');
+      throw new ForbiddenException(
+        'This admin is not assigned to an organization',
+      );
     }
     return this.offers.findByOrganization(user.organizationId);
   }

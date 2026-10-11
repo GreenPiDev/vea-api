@@ -76,7 +76,10 @@ export class OrganizationsController {
 
   @Delete('mine/artists/:userId')
   @Roles(UserRole.GALLERY_ADMIN)
-  removeMyArtist(@CurrentUser() user: JwtPayload, @Param('userId') userId: string) {
+  removeMyArtist(
+    @CurrentUser() user: JwtPayload,
+    @Param('userId') userId: string,
+  ) {
     return this.organizations.removeArtist(this.requireOrg(user), userId);
   }
 
@@ -84,7 +87,9 @@ export class OrganizationsController {
   // (see ExhibitionsService.create's identical guard).
   private requireOrg(user: JwtPayload): string {
     if (!user.organizationId) {
-      throw new ForbiddenException('This admin is not assigned to an organization');
+      throw new ForbiddenException(
+        'This admin is not assigned to an organization',
+      );
     }
     return user.organizationId;
   }

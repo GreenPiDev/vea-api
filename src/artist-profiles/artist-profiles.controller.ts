@@ -30,7 +30,10 @@ export class ArtistProfilesController {
   }
 
   @Patch('me')
-  updateOwn(@CurrentUser() user: JwtPayload, @Body() dto: UpdateArtistProfileDto) {
+  updateOwn(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateArtistProfileDto,
+  ) {
     return this.artistProfiles.updateBio(user.sub, dto);
   }
 }

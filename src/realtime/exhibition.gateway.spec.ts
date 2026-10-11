@@ -177,17 +177,23 @@ describe('ExhibitionGateway', () => {
     it('joins the watcher room and sends the current count directly to the caller, without counting as a visitor', async () => {
       // A real visitor is already present.
       const visitor = makeClient('sock-visitor');
-      prisma.exhibition.findUnique.mockResolvedValue({ id: 'exh-1', status: 'ACTIVE' });
+      prisma.exhibition.findUnique.mockResolvedValue({
+        id: 'exh-1',
+        status: 'ACTIVE',
+      });
       await gateway.handleJoin(asSocket(visitor), { exhibitionId: 'exh-1' });
 
       const watcher = makeClient('sock-watcher');
       await gateway.handleWatch(asSocket(watcher), { exhibitionId: 'exh-1' });
 
       expect(watcher.join).toHaveBeenCalledWith('exhibition:exh-1:watchers');
-      expect(watcher.emit).toHaveBeenCalledWith(SOCKET_EVENTS.ExhibitionVisitorCount, {
-        exhibitionId: 'exh-1',
-        count: 1, // the watcher itself must not be counted
-      });
+      expect(watcher.emit).toHaveBeenCalledWith(
+        SOCKET_EVENTS.ExhibitionVisitorCount,
+        {
+          exhibitionId: 'exh-1',
+          count: 1, // the watcher itself must not be counted
+        },
+      );
     });
 
     it('handleUnwatch leaves the watcher room', async () => {
@@ -199,7 +205,10 @@ describe('ExhibitionGateway', () => {
     });
 
     it('a real visitor join/leave still broadcasts to the watcher room too', async () => {
-      prisma.exhibition.findUnique.mockResolvedValue({ id: 'exh-1', status: 'ACTIVE' });
+      prisma.exhibition.findUnique.mockResolvedValue({
+        id: 'exh-1',
+        status: 'ACTIVE',
+      });
       const client = makeClient('sock-1');
       await gateway.handleJoin(asSocket(client), { exhibitionId: 'exh-1' });
 

@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExhibitionTemplateDto } from './dto/create-exhibition-template.dto';
@@ -13,7 +18,9 @@ export class ExhibitionTemplatesService {
     // Defensive only — in practice a GALLERY_ADMIN always has an
     // organizationId, same reasoning as ExhibitionsService.create.
     if (!organizationId) {
-      throw new ForbiddenException('This admin is not assigned to an organization');
+      throw new ForbiddenException(
+        'This admin is not assigned to an organization',
+      );
     }
     return this.prisma.exhibitionTemplate.create({
       data: {
@@ -57,7 +64,11 @@ export class ExhibitionTemplatesService {
     return this.assertOwnership(id, organizationId);
   }
 
-  async update(id: string, organizationId: string | null, dto: UpdateExhibitionTemplateDto) {
+  async update(
+    id: string,
+    organizationId: string | null,
+    dto: UpdateExhibitionTemplateDto,
+  ) {
     const template = await this.assertOwnership(id, organizationId);
     // A template already placed under at least one Exhibition has its room
     // shape locked — changing rectangle dimensions or a custom grid's
@@ -76,9 +87,26 @@ export class ExhibitionTemplatesService {
     const wallColor = dto.wallColor ?? template.wallColor;
     const floorColor = dto.floorColor ?? template.floorColor;
     const ceilingColor = dto.ceilingColor ?? template.ceilingColor;
-    const floorTextureId = dto.textureIds?.floor ?? template.floorTextureId ?? undefined;
-    const wallTextureId = dto.textureIds?.wall ?? template.wallTextureId ?? undefined;
-    const ceilingTextureId = dto.textureIds?.ceiling ?? template.ceilingTextureId ?? undefined;
+    // ExhibitionTemplateForm.tsx always submits `textureIds` as a whole
+    // object covering all 3 surfaces (never per-surface), including when
+    // the admin switches a surface back from texture to flat color — that
+    // case sends `{ floor: undefined, ... }`, which JSON drops entirely, so
+    // dto.textureIds.floor being undefined must mean "cleared", not "field
+    // omitted, keep old value". Only fall back to the stored textureId when
+    // the whole `textureIds` key is absent (a direct API call that never
+    // intended to touch textures at all). The `?? null` matters for Prisma
+    // specifically: an `undefined` in its `update` data means "don't touch
+    // this column" (old texture would silently survive), while `null`
+    // actually clears it.
+    const floorTextureId = dto.textureIds
+      ? (dto.textureIds.floor ?? null)
+      : (template.floorTextureId ?? undefined);
+    const wallTextureId = dto.textureIds
+      ? (dto.textureIds.wall ?? null)
+      : (template.wallTextureId ?? undefined);
+    const ceilingTextureId = dto.textureIds
+      ? (dto.textureIds.ceiling ?? null)
+      : (template.ceilingTextureId ?? undefined);
 
     return this.prisma.exhibitionTemplate.update({
       where: { id },
@@ -101,9 +129,9 @@ export class ExhibitionTemplatesService {
           wallColor,
           floorColor,
           ceilingColor,
-          floorTextureId,
-          wallTextureId,
-          ceilingTextureId,
+          floorTextureId: floorTextureId ?? undefined,
+          wallTextureId: wallTextureId ?? undefined,
+          ceilingTextureId: ceilingTextureId ?? undefined,
         }) as unknown as Prisma.InputJsonValue,
       },
     });
@@ -119,7 +147,9 @@ export class ExhibitionTemplatesService {
     });
     if (!template) throw new NotFoundException('Exhibition template not found');
     if (!organizationId || template.organizationId !== organizationId) {
-      throw new ForbiddenException('This template does not belong to your organization');
+      throw new ForbiddenException(
+        'This template does not belong to your organization',
+      );
     }
     return template;
   }

@@ -123,7 +123,8 @@ export class ExhibitionGateway implements OnGatewayDisconnect {
     // Send the current count directly to this client — broadcastCount()
     // only fires on the next real visitor join/leave, which might not
     // happen for a while, and a new watcher shouldn't wait for it.
-    const count = this.server.sockets.adapter.rooms.get(roomName(exhibitionId))?.size ?? 0;
+    const count =
+      this.server.sockets.adapter.rooms.get(roomName(exhibitionId))?.size ?? 0;
     client.emit(SOCKET_EVENTS.ExhibitionVisitorCount, { exhibitionId, count });
   }
 

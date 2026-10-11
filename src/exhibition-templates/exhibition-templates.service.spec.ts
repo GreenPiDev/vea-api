@@ -1,4 +1,8 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ExhibitionTemplatesService } from './exhibition-templates.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -42,7 +46,9 @@ describe('ExhibitionTemplatesService', () => {
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
     };
-    service = new ExhibitionTemplatesService(prisma as unknown as PrismaService);
+    service = new ExhibitionTemplatesService(
+      prisma as unknown as PrismaService,
+    );
   });
 
   describe('create', () => {
@@ -84,7 +90,10 @@ describe('ExhibitionTemplatesService', () => {
     it('accepts a custom (grid-drawn) room shape unchanged', async () => {
       const roomShape = {
         kind: 'custom' as const,
-        cells: [{ x: 0, z: 0 }, { x: 1, z: 0 }],
+        cells: [
+          { x: 0, z: 0 },
+          { x: 1, z: 0 },
+        ],
         spawn: { x: 0, z: 0, yaw: 0 },
       };
       await service.create(ownerOrgId, {
@@ -111,23 +120,25 @@ describe('ExhibitionTemplatesService', () => {
       await service.findOwn(ownerOrgId);
       const args = prisma.exhibitionTemplate.findMany.mock.calls[0][0];
       expect(args.where).toEqual({ organizationId: ownerOrgId });
-      expect(args.include).toEqual({ _count: { select: { exhibitions: true } } });
+      expect(args.include).toEqual({
+        _count: { select: { exhibitions: true } },
+      });
     });
   });
 
   describe('ownership', () => {
     it('findOneOwn throws NotFoundException for a missing template', async () => {
       prisma.exhibitionTemplate.findUnique.mockResolvedValue(null);
-      await expect(service.findOneOwn('missing', ownerOrgId)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.findOneOwn('missing', ownerOrgId),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('findOneOwn throws ForbiddenException for a template owned by another organization', async () => {
       prisma.exhibitionTemplate.findUnique.mockResolvedValue(template());
-      await expect(service.findOneOwn('template-1', otherOrgId)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.findOneOwn('template-1', otherOrgId),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('update re-derives theme from merged colors when only one color changes', async () => {
@@ -144,7 +155,9 @@ describe('ExhibitionTemplatesService', () => {
     });
 
     it('rejects a room shape change once the template is used by an exhibition', async () => {
-      prisma.exhibitionTemplate.findUnique.mockResolvedValue(template({ _count: { exhibitions: 1 } }));
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({ _count: { exhibitions: 1 } }),
+      );
       await expect(
         service.update('template-1', ownerOrgId, {
           roomShape: { kind: 'rectangle', width: 20, depth: 20 },
@@ -154,19 +167,68 @@ describe('ExhibitionTemplatesService', () => {
     });
 
     it('still allows color/wallHeight changes once the template is used by an exhibition', async () => {
-      prisma.exhibitionTemplate.findUnique.mockResolvedValue(template({ _count: { exhibitions: 1 } }));
-      await service.update('template-1', ownerOrgId, { wallHeight: 8, wallColor: '#123456' });
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({ _count: { exhibitions: 1 } }),
+      );
+      await service.update('template-1', ownerOrgId, {
+        wallHeight: 8,
+        wallColor: '#123456',
+      });
       const data = prisma.exhibitionTemplate.update.mock.calls[0][0].data;
       expect(data.wallHeight).toBe(8);
       expect(data.wallColor).toBe('#123456');
     });
 
     it('allows a room shape change when the template is unused', async () => {
-      prisma.exhibitionTemplate.findUnique.mockResolvedValue(template({ _count: { exhibitions: 0 } }));
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({ _count: { exhibitions: 0 } }),
+      );
       const roomShape = { kind: 'rectangle' as const, width: 20, depth: 20 };
       await service.update('template-1', ownerOrgId, { roomShape });
       const data = prisma.exhibitionTemplate.update.mock.calls[0][0].data;
       expect(data.roomShape).toEqual(roomShape);
+    });
+
+    it('clears a previously-set texture when the form submits textureIds with it switched back to undefined (color mode)', async () => {
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({
+          wallTextureId: 'wood',
+          floorTextureId: 'marble',
+          ceilingTextureId: 'plaster',
+        }),
+      );
+      // Mirrors what ExhibitionTemplateForm.tsx actually sends over the
+      // wire: textureIds is always present as a whole object, but a surface
+      // switched back to color mode has its key come through as undefined
+      // (JSON.stringify drops it, so on the wire it's simply absent).
+      await service.update('template-1', ownerOrgId, {
+        wallColor: '#123456',
+        textureIds: { wall: undefined, floor: 'marble', ceiling: undefined },
+      });
+      const data = prisma.exhibitionTemplate.update.mock.calls[0][0].data;
+      expect(data.wallTextureId).toBeNull();
+      expect(data.floorTextureId).toBe('marble');
+      expect(data.ceilingTextureId).toBeNull();
+      expect(data.theme).toMatchObject({
+        wallTextureId: undefined,
+        floorTextureId: 'marble',
+        ceilingTextureId: undefined,
+      });
+    });
+
+    it('keeps existing textures untouched when textureIds is omitted entirely (direct API call, not the form)', async () => {
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({
+          wallTextureId: 'wood',
+          floorTextureId: 'marble',
+          ceilingTextureId: 'plaster',
+        }),
+      );
+      await service.update('template-1', ownerOrgId, { wallColor: '#123456' });
+      const data = prisma.exhibitionTemplate.update.mock.calls[0][0].data;
+      expect(data.wallTextureId).toBe('wood');
+      expect(data.floorTextureId).toBe('marble');
+      expect(data.ceilingTextureId).toBe('plaster');
     });
   });
 });

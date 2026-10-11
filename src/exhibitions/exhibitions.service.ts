@@ -48,9 +48,15 @@ export class ExhibitionsService {
       throw new BadRequestException('endDate must be after startDate');
     }
     if (dto.artistProfileId) {
-      await this.assertArtistInOrganization(dto.artistProfileId, organizationId);
+      await this.assertArtistInOrganization(
+        dto.artistProfileId,
+        organizationId,
+      );
     }
-    const exhibitionTemplateId = await this.resolveTemplateId(dto.sceneConfig, organizationId);
+    const exhibitionTemplateId = await this.resolveTemplateId(
+      dto.sceneConfig,
+      organizationId,
+    );
     return this.prisma.exhibition.create({
       data: {
         curatorUserId: userId,
@@ -180,7 +186,11 @@ export class ExhibitionsService {
         exhibitionTemplate: true,
       },
     });
-    if (!exhibition || !PUBLIC_STATUSES.includes(exhibition.status) || exhibition.deletedAt) {
+    if (
+      !exhibition ||
+      !PUBLIC_STATUSES.includes(exhibition.status) ||
+      exhibition.deletedAt
+    ) {
       throw new NotFoundException('Exhibition not found');
     }
     return {
@@ -209,7 +219,10 @@ export class ExhibitionsService {
       throw new BadRequestException('endDate must be after startDate');
     }
     const exhibitionTemplateId = dto.sceneConfig
-      ? await this.resolveTemplateId(dto.sceneConfig, exhibition.organizationId!)
+      ? await this.resolveTemplateId(
+          dto.sceneConfig,
+          exhibition.organizationId!,
+        )
       : undefined;
     return this.prisma.exhibition.update({
       where: { id },
@@ -279,10 +292,16 @@ export class ExhibitionsService {
       // stuck "in exhibition" with nowhere to be seen — same reverse sync
       // as ACTIVE -> ENDED/DRAFT in setStatus (SOLD is left untouched).
       await tx.artwork.updateMany({
-        where: { status: 'IN_EXHIBITION', exhibitionLinks: { some: { exhibitionId: id } } },
+        where: {
+          status: 'IN_EXHIBITION',
+          exhibitionLinks: { some: { exhibitionId: id } },
+        },
         data: { status: 'LISTED' },
       });
-      return tx.exhibition.update({ where: { id }, data: { deletedAt: new Date() } });
+      return tx.exhibition.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
   }
 
@@ -291,7 +310,10 @@ export class ExhibitionsService {
     if (!exhibition.deletedAt) {
       throw new ConflictException('Exhibition is not removed');
     }
-    return this.prisma.exhibition.update({ where: { id }, data: { deletedAt: null } });
+    return this.prisma.exhibition.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
   }
 
   async addArtwork(
