@@ -81,8 +81,11 @@ export class CreateArtworkDto {
   @IsEnum(ArtworkCategory)
   category: ArtworkCategory;
 
+  // Postgres Int kolonu (int4) — DB sınırını aşan bir değer 500 ile değil,
+  // bu validasyonla 400 ile net bir hata vermeli.
   @IsInt()
   @IsPositive()
+  @Max(2_147_483_647)
   priceAmount: number;
 
   // Whole-percent cap on how far a buyer's offer may undercut priceAmount —
