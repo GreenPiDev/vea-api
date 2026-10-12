@@ -217,10 +217,16 @@ model Artwork {
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
-  artistProfile   ArtistProfile           @relation(fields: [artistProfileId], references: [id])
-  exhibitionLinks ExhibitionArtwork[]
-  offers          Offer[]
-  visitEvents     VisitEvent[]
+  artistProfile      ArtistProfile           @relation(fields: [artistProfileId], references: [id])
+  exhibitionLinks    ExhibitionArtwork[]
+  offers             Offer[]
+  visitEvents        VisitEvent[]
+  // Reverse side of Exhibition.coverArtworkId — an artwork can be the
+  // curator-chosen cover of at most one exhibition in practice (it must
+  // currently be placed there, see ExhibitionsService.update), but this is
+  // modeled as a list since Prisma requires an array on the "one" side of
+  // an optional-to-one relation without a unique constraint on the FK.
+  coverOfExhibitions Exhibition[]            @relation("ExhibitionCoverArtwork")
   removalRequests ArtworkRemovalRequest[]
 
   @@index([artistProfileId])
@@ -266,11 +272,21 @@ model Exhibition {
   // brings it back for the "Kaldırılan sergileri göster" toggle. Stats
   // endpoints never filter on this, by design.
   deletedAt            DateTime?
+  // Curator-chosen "kapak eseri" — which placed artwork's image the public
+  // exhibition-select grid card (vea-frontend's ExhibitionSelectCard.tsx)
+  // shows as its background. Null = no explicit choice, frontend falls
+  // back to artworkLinks[0] in whatever order the API returns. Must
+  // reference an artwork currently placed in *this* exhibition — enforced
+  // in ExhibitionsService.update, not at the DB level (no composite FK to
+  // ExhibitionArtwork). Cleared back to null automatically if that artwork
+  // is ever removed from the exhibition (ExhibitionsService.removeArtworkLink).
+  coverArtworkId       String?
 
   curator            User                    @relation(fields: [curatorUserId], references: [id])
   organization       Organization?           @relation(fields: [organizationId], references: [id])
   artistProfile      ArtistProfile?          @relation(fields: [artistProfileId], references: [id])
   exhibitionTemplate ExhibitionTemplate?     @relation(fields: [exhibitionTemplateId], references: [id])
+  coverArtwork       Artwork?                @relation("ExhibitionCoverArtwork", fields: [coverArtworkId], references: [id])
   artworkLinks       ExhibitionArtwork[]
   visitEvents        VisitEvent[]
   removalRequests    ArtworkRemovalRequest[]
@@ -279,6 +295,7 @@ model Exhibition {
   @@index([organizationId])
   @@index([artistProfileId])
   @@index([exhibitionTemplateId])
+  @@index([coverArtworkId])
   @@index([status])
 }
 

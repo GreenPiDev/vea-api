@@ -27,6 +27,7 @@ describe('ExhibitionsService', () => {
       findUnique: jest.Mock<Promise<unknown>, [unknown]>;
       findMany: jest.Mock<Promise<unknown>, [unknown]>;
       update: jest.Mock<Promise<unknown>, [unknown]>;
+      updateMany: jest.Mock<Promise<unknown>, [unknown]>;
       delete: jest.Mock<Promise<unknown>, [unknown]>;
     };
     exhibitionArtwork: {
@@ -70,6 +71,7 @@ describe('ExhibitionsService', () => {
         findUnique: jest.fn<Promise<unknown>, [unknown]>(),
         findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
+        updateMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({ count: 0 }),
         delete: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
       exhibitionArtwork: {
@@ -483,6 +485,76 @@ describe('ExhibitionsService', () => {
       await expect(
         service.removeArtwork('exhibition-1', 'artwork-1', ownerOrgId),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('clears coverArtworkId when the removed artwork was the cover', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce({
+        exhibitionId: 'exhibition-1',
+      });
+
+      await service.removeArtwork('exhibition-1', 'artwork-1', ownerOrgId);
+
+      expect(prisma.exhibition.updateMany).toHaveBeenCalledWith({
+        where: { id: 'exhibition-1', coverArtworkId: 'artwork-1' },
+        data: { coverArtworkId: null },
+      });
+    });
+  });
+
+  describe('update (coverArtworkId)', () => {
+    it('sets coverArtworkId when it references an artwork placed in this exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce({
+        exhibitionId: 'exhibition-1',
+        artworkId: 'artwork-1',
+      });
+
+      await service.update('exhibition-1', ownerOrgId, {
+        coverArtworkId: 'artwork-1',
+      });
+
+      expect(prisma.exhibition.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'exhibition-1' },
+          data: expect.objectContaining({ coverArtworkId: 'artwork-1' }),
+        }),
+      );
+    });
+
+    it('rejects a coverArtworkId not placed in this exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+      prisma.exhibitionArtwork.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.update('exhibition-1', ownerOrgId, {
+          coverArtworkId: 'not-placed',
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.exhibition.update).not.toHaveBeenCalled();
+    });
+
+    it('clears coverArtworkId back to null without validating a placement link', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(
+        exhibitionWithStatus('DRAFT'),
+      );
+
+      await service.update('exhibition-1', ownerOrgId, {
+        coverArtworkId: null,
+      });
+
+      expect(prisma.exhibitionArtwork.findUnique).not.toHaveBeenCalled();
+      expect(prisma.exhibition.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ coverArtworkId: null }),
+        }),
+      );
     });
   });
 

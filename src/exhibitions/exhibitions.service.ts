@@ -224,6 +224,12 @@ export class ExhibitionsService {
           exhibition.organizationId!,
         )
       : undefined;
+    // Only validate when a real id is being set — `undefined` (field
+    // omitted, leave unchanged) and `null` (explicit clear) both skip this,
+    // same as every other optional field above.
+    if (dto.coverArtworkId) {
+      await this.assertLinkExists(id, dto.coverArtworkId);
+    }
     return this.prisma.exhibition.update({
       where: { id },
       data: {
@@ -234,6 +240,7 @@ export class ExhibitionsService {
         maxArtworks: dto.maxArtworks,
         sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
         exhibitionTemplateId,
+        coverArtworkId: dto.coverArtworkId,
       },
     });
   }
@@ -414,6 +421,13 @@ export class ExhibitionsService {
       where: {
         exhibitionId_artworkId: { exhibitionId: exhibition.id, artworkId },
       },
+    });
+    // A removed artwork can no longer be anyone's cover — updateMany's where
+    // clause makes this a no-op (not an error) when it wasn't the cover,
+    // same spirit as the ACTIVE-only sync below.
+    await tx.exhibition.updateMany({
+      where: { id: exhibition.id, coverArtworkId: artworkId },
+      data: { coverArtworkId: null },
     });
     if (exhibition.status === 'ACTIVE') {
       await tx.artwork.updateMany({
