@@ -1,15 +1,22 @@
 import { Type, TypeOptions } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsDefined,
   IsIn,
   IsNumber,
+  IsOptional,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { GridCellDto, SpawnDto } from '../../exhibitions/dto/scene-config.dto';
+import {
+  CeilingLightDto,
+  GridCellDto,
+  MAX_CEILING_LIGHTS,
+  SpawnDto,
+} from '../../exhibitions/dto/scene-config.dto';
 
 /**
  * ExhibitionTemplate.roomShape, validated as a discriminated union — same
@@ -31,6 +38,15 @@ export class RectangleRoomShapeDto {
   @Min(4)
   @Max(60)
   depth: number;
+
+  // Curator-placed ceiling fixtures — see CeilingLightDto. Omitted/empty falls back
+  // to vea-frontend's galleryLayout.ts auto-generated grid, unchanged.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CEILING_LIGHTS)
+  @ValidateNested({ each: true })
+  @Type(() => CeilingLightDto)
+  ceilingLights?: CeilingLightDto[];
 }
 
 export class CustomRoomShapeDto {
@@ -47,6 +63,15 @@ export class CustomRoomShapeDto {
   @ValidateNested()
   @Type(() => SpawnDto)
   spawn: SpawnDto;
+
+  // Curator-placed ceiling fixtures — see CeilingLightDto. Omitted/empty falls back
+  // to vea-frontend's galleryLayout.ts auto-generated grid, unchanged.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CEILING_LIGHTS)
+  @ValidateNested({ each: true })
+  @Type(() => CeilingLightDto)
+  ceilingLights?: CeilingLightDto[];
 }
 
 export type RoomShapeDto = RectangleRoomShapeDto | CustomRoomShapeDto;

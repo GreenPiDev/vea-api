@@ -1,5 +1,6 @@
 import { Type, TypeOptions } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsDefined,
@@ -12,6 +13,15 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+// Shared by CustomSceneConfigDto and exhibition-templates/dto/room-shape.dto.ts's
+// RectangleRoomShapeDto/CustomRoomShapeDto — same reasoning as GridCellDto/SpawnDto
+// below. A room's curator-placed ceiling fixtures stay capped well under any
+// realistic density (see vea-frontend's galleryLayout.ts auto-grid, which has
+// always capped at 9 for FPS-budget reasons); 24 leaves real headroom for free
+// placement while still bounding the stored array and the (purely cosmetic,
+// no real light) disc count rendered per room.
+export const MAX_CEILING_LIGHTS = 24;
 
 /**
  * Exhibition.sceneConfig stays an opaque Json column (no migration for shape
@@ -56,6 +66,19 @@ export class SpawnDto {
   /** Yaw in radians: 0 = north (-Z), PI = south (+Z), PI/2 = west (-X), -PI/2 = east (+X). */
   @IsNumber()
   yaw: number;
+}
+
+/** A single curator-placed ceiling fixture position, room-local meters (same coordinate space as GridCellDto/SpawnDto). Y is never stored — vea-frontend's galleryLayout.ts always hangs it at wallHeight - 0.1, same as the auto-grid it replaces. */
+export class CeilingLightDto {
+  @IsNumber()
+  @Min(-100)
+  @Max(100)
+  x: number;
+
+  @IsNumber()
+  @Min(-100)
+  @Max(100)
+  z: number;
 }
 
 /** Optional real-photo PBR texture ids (see vea-frontend's surfaceTextures.ts) — override the flat colors when set. */
@@ -115,6 +138,16 @@ export class CustomSceneConfigDto {
   @ValidateNested()
   @Type(() => SpawnDto)
   spawn: SpawnDto;
+
+  // Curator-placed ceiling fixtures (see CeilingLightDto). Omitted/empty — every
+  // exhibition created before this field existed — falls back to galleryLayout.ts's
+  // auto-generated grid, unchanged.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CEILING_LIGHTS)
+  @ValidateNested({ each: true })
+  @Type(() => CeilingLightDto)
+  ceilingLights?: CeilingLightDto[];
 }
 
 export type SceneConfigDto = TemplateSceneConfigDto | CustomSceneConfigDto;

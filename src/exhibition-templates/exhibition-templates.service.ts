@@ -8,7 +8,34 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExhibitionTemplateDto } from './dto/create-exhibition-template.dto';
 import { UpdateExhibitionTemplateDto } from './dto/update-exhibition-template.dto';
+import { RoomShapeDto } from './dto/room-shape.dto';
 import { deriveTheme } from './theme';
+
+// True only when the *wall-defining* part of the shape actually differs —
+// width/depth for a rectangle, the cell set/spawn for a custom footprint.
+// `ceilingLights` is deliberately excluded: it never affects wallRunIds (see
+// backendAdapter.ts's backendTemplateWallRuns), so a curator can keep
+// repositioning ceiling fixtures on an already-placed template without ever
+// tripping the shape lock below.
+function shapeChanged(stored: unknown, incoming: RoomShapeDto): boolean {
+  const prev = stored as RoomShapeDto;
+  if (prev.kind !== incoming.kind) return true;
+  if (incoming.kind === 'rectangle') {
+    const prevRect = prev as Extract<RoomShapeDto, { kind: 'rectangle' }>;
+    return prevRect.width !== incoming.width || prevRect.depth !== incoming.depth;
+  }
+  const prevCustom = prev as Extract<RoomShapeDto, { kind: 'custom' }>;
+  if (
+    prevCustom.spawn.x !== incoming.spawn.x ||
+    prevCustom.spawn.z !== incoming.spawn.z ||
+    prevCustom.spawn.yaw !== incoming.spawn.yaw
+  ) {
+    return true;
+  }
+  if (prevCustom.cells.length !== incoming.cells.length) return true;
+  const prevCells = new Set(prevCustom.cells.map((c) => `${c.x},${c.z}`));
+  return incoming.cells.some((c) => !prevCells.has(`${c.x},${c.z}`));
+}
 
 @Injectable()
 export class ExhibitionTemplatesService {
@@ -76,10 +103,17 @@ export class ExhibitionTemplatesService {
     // artwork's positionData points at (see backendAdapter.ts's
     // backendTemplateWallRuns), silently dropping them from the scene.
     // Color/texture/wallHeight stay editable regardless (cosmetic only, no
-    // wallRunId is derived from them). Enforced server-side too, not just
-    // hidden in the form — ExhibitionTemplateForm.tsx never sends
-    // roomShape once locked, but this guards direct API calls as well.
-    if (dto.roomShape && template._count.exhibitions > 0) {
+    // wallRunId is derived from them) — and so does `ceilingLights` (see
+    // shapeChanged's doc comment), so ExhibitionTemplateForm.tsx always sends
+    // a `roomShape` now (echoing the stored width/depth or cells/spawn
+    // unchanged when shape-locked, only `ceilingLights` actually differs).
+    // Enforced server-side too, not just hidden in the form, for direct API
+    // calls.
+    if (
+      dto.roomShape &&
+      template._count.exhibitions > 0 &&
+      shapeChanged(template.roomShape, dto.roomShape)
+    ) {
       throw new ConflictException(
         'Cannot change room shape while the template is used by an exhibition',
       );
