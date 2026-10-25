@@ -13,8 +13,10 @@ import {
 } from 'class-validator';
 import {
   CeilingLightDto,
+  FurniturePlacementDto,
   GridCellDto,
   MAX_CEILING_LIGHTS,
+  MAX_FURNITURE_PER_ROOM,
   SpawnDto,
 } from '../../exhibitions/dto/scene-config.dto';
 
@@ -47,6 +49,16 @@ export class RectangleRoomShapeDto {
   @ValidateNested({ each: true })
   @Type(() => CeilingLightDto)
   ceilingLights?: CeilingLightDto[];
+
+  // Curator-placed furniture — see FurniturePlacementDto. Omitted/empty falls
+  // back to no furniture at all (every template created before this field
+  // existed), unchanged.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_FURNITURE_PER_ROOM)
+  @ValidateNested({ each: true })
+  @Type(() => FurniturePlacementDto)
+  furniture?: FurniturePlacementDto[];
 }
 
 export class CustomRoomShapeDto {
@@ -72,6 +84,16 @@ export class CustomRoomShapeDto {
   @ValidateNested({ each: true })
   @Type(() => CeilingLightDto)
   ceilingLights?: CeilingLightDto[];
+
+  // Curator-placed furniture — see FurniturePlacementDto. Omitted/empty falls
+  // back to no furniture at all (every template created before this field
+  // existed), unchanged.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_FURNITURE_PER_ROOM)
+  @ValidateNested({ each: true })
+  @Type(() => FurniturePlacementDto)
+  furniture?: FurniturePlacementDto[];
 }
 
 export type RoomShapeDto = RectangleRoomShapeDto | CustomRoomShapeDto;

@@ -108,6 +108,7 @@ model Organization {
   admins              User[]
   exhibitions         Exhibition[]
   exhibitionTemplates ExhibitionTemplate[]
+  furnitureAssets     FurnitureAsset[]
 }
 
 model User {
@@ -332,6 +333,35 @@ model ExhibitionTemplate {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   exhibitions  Exhibition[]
+
+  @@index([organizationId])
+}
+
+// A placeable 3D furniture model (public/furnitures/*.glb for the platform
+// defaults, R2-hosted for curator uploads — see vea-frontend's furniture.ts/
+// FurnitureEditor.tsx). Referenced by id from ExhibitionTemplate.roomShape's
+// opaque furniture[] JSON array (FurniturePlacementDto.furnitureId) — no FK
+// there since roomShape stays a free-form Json column, same reasoning as
+// ceilingLights. organizationId null = a platform-provided default, visible
+// to every organization (see FurnitureAssetsService.findByOrganization);
+// non-null = that organization's own upload, visible only to it.
+model FurnitureAsset {
+  id             String   @id @default(cuid())
+  organizationId String?
+  name           String
+  modelUrl       String
+  thumbnailUrl   String?
+  // Real-world footprint in meters, measured from the model's own bounding
+  // box at scale 1 (see vea-frontend's loadGltfBoundingBox.ts) — fixed at
+  // upload time, never re-measured. `scale` is the only size knob exposed
+  // to curators afterward (uniform multiplier, keeps width/depth/height
+  // proportional — see vea-frontend's furniture.ts's toFurnitureDef).
+  nativeWidth Float
+  nativeDepth Float
+  scale       Float    @default(1)
+  createdAt   DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
 }

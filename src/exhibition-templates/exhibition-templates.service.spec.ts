@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { ExhibitionTemplatesService } from './exhibition-templates.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { FurnitureAssetsService } from '../furniture-assets/furniture-assets.service';
 
 describe('ExhibitionTemplatesService', () => {
   const ownerOrgId = 'org-owner';
@@ -17,6 +19,9 @@ describe('ExhibitionTemplatesService', () => {
       findUnique: jest.Mock<Promise<unknown>, [unknown]>;
       update: jest.Mock<Promise<unknown>, [unknown]>;
     };
+  };
+  let furnitureAssets: {
+    findByOrganization: jest.Mock<Promise<{ id: string }[]>, [string | null]>;
   };
   let service: ExhibitionTemplatesService;
 
@@ -46,14 +51,20 @@ describe('ExhibitionTemplatesService', () => {
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
     };
+    furnitureAssets = {
+      findByOrganization: jest
+        .fn<Promise<{ id: string }[]>, [string | null]>()
+        .mockResolvedValue([]),
+    };
     service = new ExhibitionTemplatesService(
       prisma as unknown as PrismaService,
+      furnitureAssets as unknown as FurnitureAssetsService,
     );
   });
 
   describe('create', () => {
-    it('rejects an admin with no organizationId', () => {
-      expect(() =>
+    it('rejects an admin with no organizationId', async () => {
+      await expect(
         service.create(null, {
           name: 'x',
           roomShape: { kind: 'rectangle', width: 10, depth: 10 },
@@ -62,7 +73,45 @@ describe('ExhibitionTemplatesService', () => {
           floorColor: '#222222',
           ceilingColor: '#333333',
         }),
-      ).toThrow(ForbiddenException);
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects a furniture placement referencing an asset not visible to this organization', async () => {
+      furnitureAssets.findByOrganization.mockResolvedValue([{ id: 'visible-asset' }]);
+      await expect(
+        service.create(ownerOrgId, {
+          name: 'x',
+          roomShape: {
+            kind: 'rectangle',
+            width: 10,
+            depth: 10,
+            furniture: [{ furnitureId: 'someone-elses-asset', x: 0, z: 0, rotationY: 0 }],
+          },
+          wallHeight: 6,
+          wallColor: '#111111',
+          floorColor: '#222222',
+          ceilingColor: '#333333',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.exhibitionTemplate.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a furniture placement referencing a visible asset', async () => {
+      furnitureAssets.findByOrganization.mockResolvedValue([{ id: 'visible-asset' }]);
+      await service.create(ownerOrgId, {
+        name: 'x',
+        roomShape: {
+          kind: 'rectangle',
+          width: 10,
+          depth: 10,
+          furniture: [{ furnitureId: 'visible-asset', x: 0, z: 0, rotationY: 0 }],
+        },
+        wallHeight: 6,
+        wallColor: '#111111',
+        floorColor: '#222222',
+        ceilingColor: '#333333',
+      });
+      expect(prisma.exhibitionTemplate.create).toHaveBeenCalled();
     });
 
     it('derives and stores the full theme from the 3 picked colors, and stores roomShape as-is', async () => {

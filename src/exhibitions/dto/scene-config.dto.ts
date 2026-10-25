@@ -81,6 +81,34 @@ export class CeilingLightDto {
   z: number;
 }
 
+// Shared by exhibition-templates/dto/room-shape.dto.ts's RectangleRoomShapeDto/
+// CustomRoomShapeDto — same "cosmetic, no wallRunId derivation" reasoning as
+// CeilingLightDto above, so a template's room-shape lock (see
+// ExhibitionTemplatesService's shapeChanged) never looks at this field either.
+// Capped well above any realistic single-room furniture count while still
+// bounding the stored array and the per-room model-instance count rendered.
+export const MAX_FURNITURE_PER_ROOM = 20;
+
+/** A single curator-placed furniture piece, room-local meters (same coordinate space as GridCellDto/SpawnDto/CeilingLightDto). `furnitureId` picks a model from vea-frontend's furniture.ts FURNITURE_CATALOG — not validated against that list here, same approach as TemplateSceneConfigDto's templateId (frontend-owned data). */
+export class FurniturePlacementDto {
+  @IsString()
+  furnitureId: string;
+
+  @IsNumber()
+  @Min(-100)
+  @Max(100)
+  x: number;
+
+  @IsNumber()
+  @Min(-100)
+  @Max(100)
+  z: number;
+
+  /** Yaw in radians, same convention as SpawnDto.yaw: 0 = north (-Z), PI = south (+Z), PI/2 = west (-X), -PI/2 = east (+X). */
+  @IsNumber()
+  rotationY: number;
+}
+
 /** Optional real-photo PBR texture ids (see vea-frontend's surfaceTextures.ts) — override the flat colors when set. */
 export class CustomTextureIdsDto {
   @IsOptional()

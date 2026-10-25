@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -6,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { FurnitureAssetsService } from '../furniture-assets/furniture-assets.service';
 import { CreateExhibitionTemplateDto } from './dto/create-exhibition-template.dto';
 import { UpdateExhibitionTemplateDto } from './dto/update-exhibition-template.dto';
 import { RoomShapeDto } from './dto/room-shape.dto';
@@ -39,9 +41,34 @@ function shapeChanged(stored: unknown, incoming: RoomShapeDto): boolean {
 
 @Injectable()
 export class ExhibitionTemplatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly furnitureAssets: FurnitureAssetsService,
+  ) {}
 
-  create(organizationId: string | null, dto: CreateExhibitionTemplateDto) {
+  // Every furnitureId a curator places must resolve to a FurnitureAsset
+  // actually visible to this organization (a platform default, or one of
+  // its own uploads) — closes off referencing another organization's
+  // private upload by id via a direct API call (the public by-organization
+  // endpoint already only ever returns the right set, but this is the
+  // server-side backstop). No-op when the shape has no furniture at all.
+  private async assertFurnitureVisible(
+    organizationId: string | null,
+    roomShape: RoomShapeDto,
+  ) {
+    const ids = roomShape.furniture?.map((f) => f.furnitureId) ?? [];
+    if (ids.length === 0) return;
+    const visible = await this.furnitureAssets.findByOrganization(organizationId);
+    const visibleIds = new Set(visible.map((a) => a.id));
+    const unknown = ids.filter((id) => !visibleIds.has(id));
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        `Unknown or inaccessible furnitureId(s): ${unknown.join(', ')}`,
+      );
+    }
+  }
+
+  async create(organizationId: string | null, dto: CreateExhibitionTemplateDto) {
     // Defensive only — in practice a GALLERY_ADMIN always has an
     // organizationId, same reasoning as ExhibitionsService.create.
     if (!organizationId) {
@@ -49,6 +76,7 @@ export class ExhibitionTemplatesService {
         'This admin is not assigned to an organization',
       );
     }
+    await this.assertFurnitureVisible(organizationId, dto.roomShape);
     return this.prisma.exhibitionTemplate.create({
       data: {
         organizationId,
@@ -123,6 +151,9 @@ export class ExhibitionTemplatesService {
     dto: UpdateExhibitionTemplateDto,
   ) {
     const template = await this.assertOwnership(id, organizationId);
+    if (dto.roomShape) {
+      await this.assertFurnitureVisible(organizationId, dto.roomShape);
+    }
     // A template already placed under at least one Exhibition has its room
     // shape locked — changing rectangle dimensions or a custom grid's
     // cells/spawn would invalidate the wallRunId every already-placed
