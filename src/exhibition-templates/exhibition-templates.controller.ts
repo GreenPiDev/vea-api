@@ -52,4 +52,9 @@ export class ExhibitionTemplatesController {
   ) {
     return this.templates.update(id, user.organizationId, dto);
   }
+
+  @Post(':id/duplicate')
+  duplicate(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.templates.duplicate(id, user.organizationId);
+  }
 }

@@ -91,6 +91,32 @@ export class ExhibitionTemplatesService {
     return this.assertOwnership(id, organizationId);
   }
 
+  // Full clone of an existing template under the same organization, so a
+  // curator can tweak a copy (colors/textures/name) instead of rebuilding a
+  // room shape from scratch. roomShape/theme are copied as-is (already-valid
+  // JSON, no need to re-derive theme from colors) — the new row starts with
+  // zero exhibitions, so its own room shape is unlocked even if the source
+  // template's was locked by usage.
+  async duplicate(id: string, organizationId: string | null) {
+    const template = await this.assertOwnership(id, organizationId);
+    return this.prisma.exhibitionTemplate.create({
+      data: {
+        organizationId: template.organizationId,
+        name: `${template.name} (Kopya)`,
+        subtitle: template.subtitle,
+        roomShape: template.roomShape as Prisma.InputJsonValue,
+        wallHeight: template.wallHeight,
+        wallColor: template.wallColor,
+        floorColor: template.floorColor,
+        ceilingColor: template.ceilingColor,
+        floorTextureId: template.floorTextureId,
+        wallTextureId: template.wallTextureId,
+        ceilingTextureId: template.ceilingTextureId,
+        theme: template.theme as Prisma.InputJsonValue,
+      },
+    });
+  }
+
   async update(
     id: string,
     organizationId: string | null,

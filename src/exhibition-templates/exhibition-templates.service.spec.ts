@@ -231,4 +231,34 @@ describe('ExhibitionTemplatesService', () => {
       expect(data.ceilingTextureId).toBe('plaster');
     });
   });
+
+  describe('duplicate', () => {
+    it('rejects duplicating a template owned by another organization', async () => {
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(template());
+      await expect(
+        service.duplicate('template-1', otherOrgId),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.exhibitionTemplate.create).not.toHaveBeenCalled();
+    });
+
+    it('clones a used (shape-locked) template as a fresh, unused row with a suffixed name', async () => {
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({
+          _count: { exhibitions: 3 },
+          wallTextureId: 'wood',
+          theme: { wallColor: '#efe4cf' },
+        }),
+      );
+      await service.duplicate('template-1', ownerOrgId);
+      const data = prisma.exhibitionTemplate.create.mock.calls[0][0].data;
+      expect(data.organizationId).toBe(ownerOrgId);
+      expect(data.name).toBe('Rönesans (Kopya)');
+      expect(data.roomShape).toEqual({ kind: 'rectangle', width: 14, depth: 10 });
+      expect(data.wallTextureId).toBe('wood');
+      expect(data.theme).toEqual({ wallColor: '#efe4cf' });
+      // The clone itself carries no _count — it's a plain create() call, so
+      // the new row starts with 0 exhibitions and an unlocked room shape.
+      expect(data._count).toBeUndefined();
+    });
+  });
 });
