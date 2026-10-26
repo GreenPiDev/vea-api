@@ -26,12 +26,12 @@ export class CreateFurnitureAssetDto {
   thumbnailUrl?: string;
 
   @IsNumber()
-  @Min(0.05)
+  @Min(0.02)
   @Max(10)
   nativeWidth: number;
 
   @IsNumber()
-  @Min(0.05)
+  @Min(0.02)
   @Max(10)
   nativeDepth: number;
 
