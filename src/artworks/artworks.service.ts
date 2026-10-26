@@ -88,7 +88,11 @@ export class ArtworksService {
       // silently omitting it or letting the curator hit a 409.
       include: {
         artistProfile: true,
+        // A link to a soft-deleted exhibition (Exhibition.deletedAt) is not
+        // a real placement anymore — the row survives for that exhibition's
+        // historical stats only, see ExhibitionsService.remove().
         exhibitionLinks: {
+          where: { exhibition: { deletedAt: null } },
           include: { exhibition: { select: { id: true, title: true } } },
         },
       },
@@ -101,8 +105,13 @@ export class ArtworksService {
       where: { artistProfileId: profile.id },
       orderBy: { createdAt: 'desc' },
       include: {
-        // Lets the artist see which exhibition(s) an artwork is currently placed in.
-        exhibitionLinks: { include: { exhibition: true } },
+        // Lets the artist see which exhibition(s) an artwork is currently
+        // placed in — excludes links to a soft-deleted exhibition, same
+        // reasoning as findByOrganization above.
+        exhibitionLinks: {
+          where: { exhibition: { deletedAt: null } },
+          include: { exhibition: true },
+        },
         // So ArtworkList.tsx can swap the delete button for a "request
         // pending" badge instead of letting the artist re-open a second
         // removal request for the same artwork.
@@ -126,7 +135,14 @@ export class ArtworksService {
     const artworks = await this.prisma.artwork.findMany({
       where: { artistProfileId: profile.id },
       orderBy: { createdAt: 'desc' },
-      include: { exhibitionLinks: { include: { exhibition: true } } },
+      // Same deletedAt exclusion as findOwn — a soft-deleted exhibition is
+      // not a current placement.
+      include: {
+        exhibitionLinks: {
+          where: { exhibition: { deletedAt: null } },
+          include: { exhibition: true },
+        },
+      },
     });
 
     const artworkIds = artworks.map((a) => a.id);
@@ -218,8 +234,10 @@ export class ArtworksService {
 
   async archive(id: string, userId: string) {
     const artwork = await this.assertOwnership(id, userId);
+    // A link to a soft-deleted exhibition doesn't block archiving — see
+    // ExhibitionsService.addArtwork's identical deletedAt exclusion.
     const activeLink = await this.prisma.exhibitionArtwork.findFirst({
-      where: { artworkId: id },
+      where: { artworkId: id, exhibition: { deletedAt: null } },
     });
     if (activeLink) {
       throw new ConflictException(

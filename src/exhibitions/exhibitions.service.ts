@@ -230,6 +230,15 @@ export class ExhibitionsService {
     if (dto.coverArtworkId) {
       await this.assertLinkExists(id, dto.coverArtworkId);
     }
+    // Same cross-org guard as create() — a curator may only re-pin this
+    // exhibition to an artist in their own org. `null` (explicit clear back
+    // to mixed/group show) skips this, same tri-state as coverArtworkId.
+    if (dto.artistProfileId) {
+      await this.assertArtistInOrganization(
+        dto.artistProfileId,
+        exhibition.organizationId!,
+      );
+    }
     return this.prisma.exhibition.update({
       where: { id },
       data: {
@@ -238,6 +247,7 @@ export class ExhibitionsService {
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
         maxArtworks: dto.maxArtworks,
+        artistProfileId: dto.artistProfileId,
         sceneConfig: dto.sceneConfig as unknown as Prisma.InputJsonValue,
         exhibitionTemplateId,
         coverArtworkId: dto.coverArtworkId,
@@ -357,8 +367,11 @@ export class ExhibitionsService {
     // (Artwork.status only flips LISTED->IN_EXHIBITION when its exhibition
     // goes ACTIVE, so without this check the same LISTED artwork could be
     // added to two different DRAFT exhibitions with nothing to catch it).
+    // A link to a soft-deleted exhibition (Exhibition.deletedAt) doesn't
+    // count as "placed" — the row survives for that exhibition's historical
+    // stats, but the artwork itself must be free to go anywhere else.
     const existing = await this.prisma.exhibitionArtwork.findFirst({
-      where: { artworkId: dto.artworkId },
+      where: { artworkId: dto.artworkId, exhibition: { deletedAt: null } },
     });
     if (existing)
       throw new ConflictException(

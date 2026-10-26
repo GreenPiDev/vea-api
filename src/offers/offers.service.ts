@@ -140,10 +140,16 @@ export class OffersService {
       where: { artwork: { artistProfile: { userId } } },
       // exhibitionLinks so the UI can show which show the artwork is
       // currently hanging in, same "sergileniyor: X" info ArtworkList.tsx
-      // already surfaces elsewhere.
+      // already surfaces elsewhere. A link to a soft-deleted exhibition is
+      // excluded — same reasoning as ArtworksService.findOwn.
       include: {
         artwork: {
-          include: { exhibitionLinks: { include: { exhibition: true } } },
+          include: {
+            exhibitionLinks: {
+              where: { exhibition: { deletedAt: null } },
+              include: { exhibition: true },
+            },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -163,7 +169,11 @@ export class OffersService {
         artwork: {
           include: {
             artistProfile: true,
-            exhibitionLinks: { include: { exhibition: true } },
+            // Same soft-deleted-exhibition exclusion as findMineAsSeller.
+            exhibitionLinks: {
+              where: { exhibition: { deletedAt: null } },
+              include: { exhibition: true },
+            },
           },
         },
         buyer: true,

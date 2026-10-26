@@ -170,7 +170,7 @@ describe('ExhibitionTemplatesService', () => {
       const args = prisma.exhibitionTemplate.findMany.mock.calls[0][0];
       expect(args.where).toEqual({ organizationId: ownerOrgId });
       expect(args.include).toEqual({
-        _count: { select: { exhibitions: true } },
+        _count: { select: { exhibitions: { where: { deletedAt: null } } } },
       });
     });
   });

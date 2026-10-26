@@ -111,7 +111,12 @@ export class ExhibitionTemplatesService {
     return this.prisma.exhibitionTemplate.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'asc' },
-      include: { _count: { select: { exhibitions: true } } },
+      // Soft-deleted exhibitions (Exhibition.deletedAt) don't actually use
+      // the template anymore — without this filter a removed exhibition
+      // keeps the template's room shape locked forever.
+      include: {
+        _count: { select: { exhibitions: { where: { deletedAt: null } } } },
+      },
     });
   }
 
@@ -234,7 +239,9 @@ export class ExhibitionTemplatesService {
   private async assertOwnership(id: string, organizationId: string | null) {
     const template = await this.prisma.exhibitionTemplate.findUnique({
       where: { id },
-      include: { _count: { select: { exhibitions: true } } },
+      include: {
+        _count: { select: { exhibitions: { where: { deletedAt: null } } } },
+      },
     });
     if (!template) throw new NotFoundException('Exhibition template not found');
     if (!organizationId || template.organizationId !== organizationId) {
