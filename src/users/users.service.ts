@@ -10,8 +10,15 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Includes `organization` for the same reason as findById below —
+  // AuthService.verifyCode returns this user alongside the access token so
+  // the frontend has role/organization in hand immediately, without a
+  // second round-trip to /auth/me.
   findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: { organization: true },
+    });
   }
 
   // Includes `organization` (not just organizationId) — /auth/me is this

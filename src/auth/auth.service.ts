@@ -54,7 +54,10 @@ export class AuthService {
   async verifyCode(
     email: string,
     code: string,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<{
+    accessToken: string;
+    user: NonNullable<Awaited<ReturnType<UsersService['findByEmail']>>>;
+  }> {
     const user = await this.users.findByEmail(email);
     const invalid = () => new UnauthorizedException('Invalid or expired code');
     if (!user) throw invalid();
@@ -93,6 +96,6 @@ export class AuthService {
       role: user.role,
       organizationId: user.organizationId,
     });
-    return { accessToken };
+    return { accessToken, user };
   }
 }

@@ -178,7 +178,7 @@ describe('AuthService', () => {
 
       const result = await service.verifyCode(user.email, plainCode);
 
-      expect(result).toEqual({ accessToken: 'signed.jwt.token' });
+      expect(result).toEqual({ accessToken: 'signed.jwt.token', user });
       expect(prisma.verificationCode.update).toHaveBeenCalledWith({
         where: { id: 'code-1' },
         data: { consumedAt: expect.any(Date) as Date },

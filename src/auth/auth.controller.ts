@@ -40,9 +40,7 @@ export class AuthController {
 
   @Post('verify-code')
   @HttpCode(200)
-  async verifyCode(
-    @Body() dto: VerifyCodeDto,
-  ): Promise<{ accessToken: string }> {
+  async verifyCode(@Body() dto: VerifyCodeDto) {
     return this.auth.verifyCode(dto.email, dto.code);
   }
 
