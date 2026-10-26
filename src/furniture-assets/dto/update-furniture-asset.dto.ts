@@ -1,9 +1,19 @@
-import { IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 // Deliberately not a PartialType(CreateFurnitureAssetDto): modelUrl/
 // thumbnailUrl/nativeWidth/nativeDepth are fixed at upload time (the model
 // file itself and its own measured bounding box never change post-create)
-// — only name and the uniform `scale` knob are ever editable afterward.
+// — only name, the uniform `scale` knob, and `isSeating` are ever editable
+// afterward.
 export class UpdateFurnitureAssetDto {
   @IsOptional()
   @IsString()
@@ -16,4 +26,8 @@ export class UpdateFurnitureAssetDto {
   @Min(0.1)
   @Max(5)
   scale?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isSeating?: boolean;
 }

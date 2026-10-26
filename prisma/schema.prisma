@@ -359,7 +359,9 @@ model FurnitureAsset {
   nativeWidth Float
   nativeDepth Float
   scale       Float    @default(1)
-  createdAt   DateTime @default(now())
+  // Whether this model is a seat a visitor can sit in — see vea-frontend's seating.ts
+  isSeating Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   organization Organization? @relation(fields: [organizationId], references: [id])
 

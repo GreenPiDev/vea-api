@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -15,6 +16,7 @@ export interface StoredObject {
 
 @Injectable()
 export class R2Service {
+  private readonly logger = new Logger(R2Service.name);
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly envFolder: string;
@@ -69,6 +71,19 @@ export class R2Service {
     );
 
     return key;
+  }
+
+  // Best-effort — a dangling R2 object (bucket cost, not a correctness
+  // issue) is preferable to blocking the DB delete on a storage-layer
+  // hiccup, so failures are logged, not thrown.
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await this.client.send(
+        new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to delete R2 object ${key}: ${err}`);
+    }
   }
 
   async getObject(key: string): Promise<StoredObject> {

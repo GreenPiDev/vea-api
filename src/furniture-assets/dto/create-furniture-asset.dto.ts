@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -40,4 +41,8 @@ export class CreateFurnitureAssetDto {
   @Min(0.1)
   @Max(5)
   scale?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isSeating?: boolean;
 }
