@@ -8,16 +8,23 @@ import { ExhibitionTemplatesService } from './exhibition-templates.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { FurnitureAssetsService } from '../furniture-assets/furniture-assets.service';
 
+/** Shape of the Prisma call arguments these tests read back off the mocks. */
+type PrismaCallArgs = {
+  data: Record<string, unknown>;
+  where: unknown;
+  include: unknown;
+};
+
 describe('ExhibitionTemplatesService', () => {
   const ownerOrgId = 'org-owner';
   const otherOrgId = 'org-other';
 
   let prisma: {
     exhibitionTemplate: {
-      create: jest.Mock<Promise<unknown>, [unknown]>;
-      findMany: jest.Mock<Promise<unknown>, [unknown]>;
-      findUnique: jest.Mock<Promise<unknown>, [unknown]>;
-      update: jest.Mock<Promise<unknown>, [unknown]>;
+      create: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      findMany: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      findUnique: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      update: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
     };
   };
   let furnitureAssets: {
@@ -45,10 +52,16 @@ describe('ExhibitionTemplatesService', () => {
   beforeEach(() => {
     prisma = {
       exhibitionTemplate: {
-        create: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
-        findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
-        findUnique: jest.fn<Promise<unknown>, [unknown]>(),
-        update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
+        create: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue({}),
+        findMany: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue([]),
+        findUnique: jest.fn<Promise<unknown>, [PrismaCallArgs]>(),
+        update: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue({}),
       },
     };
     furnitureAssets = {

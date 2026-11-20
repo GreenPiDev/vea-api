@@ -4,17 +4,24 @@ import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../common/r2/r2.service';
 import { FileUrlService } from '../common/r2/file-url.service';
 
+/** Shape of the Prisma call arguments these tests read back off the mocks. */
+type PrismaCallArgs = {
+  data: Record<string, unknown>;
+  where: unknown;
+  include: unknown;
+};
+
 describe('FurnitureAssetsService', () => {
   const ownerOrgId = 'org-owner';
   const otherOrgId = 'org-other';
 
   let prisma: {
     furnitureAsset: {
-      create: jest.Mock<Promise<unknown>, [unknown]>;
-      findMany: jest.Mock<Promise<unknown>, [unknown]>;
-      findUnique: jest.Mock<Promise<unknown>, [unknown]>;
-      update: jest.Mock<Promise<unknown>, [unknown]>;
-      delete: jest.Mock<Promise<unknown>, [unknown]>;
+      create: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      findMany: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      findUnique: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      update: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
+      delete: jest.Mock<Promise<unknown>, [PrismaCallArgs]>;
     };
   };
   let service: FurnitureAssetsService;
@@ -36,11 +43,19 @@ describe('FurnitureAssetsService', () => {
   beforeEach(() => {
     prisma = {
       furnitureAsset: {
-        create: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
-        findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
-        findUnique: jest.fn<Promise<unknown>, [unknown]>(),
-        update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
-        delete: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
+        create: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue({}),
+        findMany: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue([]),
+        findUnique: jest.fn<Promise<unknown>, [PrismaCallArgs]>(),
+        update: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue({}),
+        delete: jest
+          .fn<Promise<unknown>, [PrismaCallArgs]>()
+          .mockResolvedValue({}),
       },
     };
     r2 = {
