@@ -107,6 +107,88 @@ export class FurniturePlacementDto {
   /** Yaw in radians, same convention as SpawnDto.yaw: 0 = north (-Z), PI = south (+Z), PI/2 = west (-X), -PI/2 = east (+X). */
   @IsNumber()
   rotationY: number;
+
+  /** 1 = stands on the template's mezzanine (MezzanineDto); omitted/0 = the room floor. */
+  @IsOptional()
+  @IsIn([0, 1])
+  level?: 0 | 1;
+}
+
+// Windows cut into a room's walls + the view through them (vea-frontend's windowOpenings.ts / outdoorPanoramas.ts).
+// Cosmetic like CeilingLightDto/FurniturePlacementDto: a template's room-shape lock never looks at them. Stored
+// relative to a wall (wallId + 0..1 alongFraction, same idea as PositionDataDto.alongFraction) so resizing the
+// room doesn't throw a window off its wall; vea-frontend clamps the size into the wall at render time and skips
+// windows on unknown walls. 8 = the frontend's sun-patch slot count on desktop.
+export const MAX_WINDOWS_PER_ROOM = 8;
+// Mirrors vea-frontend's WINDOW_STYLE_IDS (windowOpenings.ts) — keep in sync by hand.
+// 'balcony' = a floor-level door onto a balcony platform outside the wall (vea-frontend's balcony.ts).
+export const WINDOW_STYLE_IDS = [
+  'modern',
+  'classic',
+  'panorama',
+  'balcony',
+] as const;
+
+export class WindowPlacementDto {
+  /** Frontend-generated, unique within the room. */
+  @IsString()
+  id: string;
+
+  /** Wall id: "north"|"south"|"east"|"west" for a rectangle room, a custom wall run's id otherwise. */
+  @IsString()
+  wallId: string;
+
+  /** Opening centre along the wall, 0..1 of its length (from its min-x / min-z end). */
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  alongFraction: number;
+
+  @IsNumber()
+  @Min(0.3)
+  @Max(60)
+  width: number;
+
+  @IsNumber()
+  @Min(0.3)
+  @Max(20)
+  height: number;
+
+  /** Bottom of the opening above the floor; 0 = floor-to-ceiling glazing. */
+  @IsNumber()
+  @Min(0)
+  @Max(20)
+  sillHeight: number;
+
+  @IsIn(WINDOW_STYLE_IDS)
+  styleId: (typeof WINDOW_STYLE_IDS)[number];
+
+  /** Balcony door only: platform length along the wall (m). vea-frontend clamps it into the wall. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0.5)
+  @Max(60)
+  balconyWidth?: number;
+
+  /** Balcony door only: how far the platform reaches out from the wall (m). */
+  @IsOptional()
+  @IsNumber()
+  @Min(0.5)
+  @Max(10)
+  balconyDepth?: number;
+}
+
+/** The 360° view through the windows. `panoramaId` is a vea-frontend outdoorPanoramas.ts id — not validated here (frontend-owned data, like templateId). */
+export class OutdoorDto {
+  @IsString()
+  panoramaId: string;
+
+  /** Turns the view (and the sun in it) around the vertical axis, radians. */
+  @IsOptional()
+  @IsNumber()
+  @Min(-7)
+  @Max(7)
+  rotationY?: number;
 }
 
 /** Optional real-photo PBR texture ids (see vea-frontend's surfaceTextures.ts) — override the flat colors when set. */
@@ -176,6 +258,19 @@ export class CustomSceneConfigDto {
   @ValidateNested({ each: true })
   @Type(() => CeilingLightDto)
   ceilingLights?: CeilingLightDto[];
+
+  // Windows + outdoor view (see WindowPlacementDto/OutdoorDto). Omitted = a closed room, unchanged.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_WINDOWS_PER_ROOM)
+  @ValidateNested({ each: true })
+  @Type(() => WindowPlacementDto)
+  windows?: WindowPlacementDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OutdoorDto)
+  outdoor?: OutdoorDto;
 }
 
 export type SceneConfigDto = TemplateSceneConfigDto | CustomSceneConfigDto;

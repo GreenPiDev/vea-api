@@ -1,4 +1,4 @@
-const DEFAULT_ORIGIN = 'http://localhost:5173';
+const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
 
 // Read directly off process.env (not ConfigService) because WebSocketGateway
 // decorator options are evaluated at import time, before Nest's DI container
@@ -7,7 +7,7 @@ const DEFAULT_ORIGIN = 'http://localhost:5173';
 // injected via `docker run --env-file` before the process even starts.
 export function getCorsOrigins(): string[] {
   const raw = process.env.CORS_ORIGIN;
-  if (!raw) return [DEFAULT_ORIGIN];
+  if (!raw) return DEFAULT_ORIGINS;
   return raw
     .split(',')
     .map((origin) => origin.trim())

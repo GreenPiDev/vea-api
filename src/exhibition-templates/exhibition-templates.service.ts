@@ -24,7 +24,19 @@ function shapeChanged(stored: unknown, incoming: RoomShapeDto): boolean {
   if (prev.kind !== incoming.kind) return true;
   if (incoming.kind === 'rectangle') {
     const prevRect = prev as Extract<RoomShapeDto, { kind: 'rectangle' }>;
-    return prevRect.width !== incoming.width || prevRect.depth !== incoming.depth;
+    // A mezzanine adds walls artworks hang on ("<wall>@mezz"), so adding,
+    // moving or resizing it is a shape change too.
+    const mezz = (m?: {
+      wallId: string;
+      depth: number;
+      top: number;
+      stairEnd: string;
+    }) => (m ? `${m.wallId}|${m.depth}|${m.top}|${m.stairEnd}` : '');
+    return (
+      prevRect.width !== incoming.width ||
+      prevRect.depth !== incoming.depth ||
+      mezz(prevRect.mezzanine) !== mezz(incoming.mezzanine)
+    );
   }
   const prevCustom = prev as Extract<RoomShapeDto, { kind: 'custom' }>;
   if (
@@ -58,7 +70,8 @@ export class ExhibitionTemplatesService {
   ) {
     const ids = roomShape.furniture?.map((f) => f.furnitureId) ?? [];
     if (ids.length === 0) return;
-    const visible = await this.furnitureAssets.findByOrganization(organizationId);
+    const visible =
+      await this.furnitureAssets.findByOrganization(organizationId);
     const visibleIds = new Set(visible.map((a) => a.id));
     const unknown = ids.filter((id) => !visibleIds.has(id));
     if (unknown.length > 0) {
@@ -68,7 +81,10 @@ export class ExhibitionTemplatesService {
     }
   }
 
-  async create(organizationId: string | null, dto: CreateExhibitionTemplateDto) {
+  async create(
+    organizationId: string | null,
+    dto: CreateExhibitionTemplateDto,
+  ) {
     // Defensive only — in practice a GALLERY_ADMIN always has an
     // organizationId, same reasoning as ExhibitionsService.create.
     if (!organizationId) {

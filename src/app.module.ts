@@ -30,7 +30,9 @@ import { FilesModule } from './files/files.module';
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        throttlers: [{ ttl: 60_000, limit: config.get<number>('RATE_LIMIT_MAX', 60) }],
+        throttlers: [
+          { ttl: 60_000, limit: config.get<number>('RATE_LIMIT_MAX', 60) },
+        ],
       }),
     }),
     PrismaModule,

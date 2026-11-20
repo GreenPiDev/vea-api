@@ -24,7 +24,8 @@ describe('FurnitureAssetsService', () => {
     id: 'asset-1',
     organizationId: ownerOrgId,
     name: 'Koltuk',
-    modelUrl: 'https://example.com/files?key=VEA/development/furniture-models/model.glb',
+    modelUrl:
+      'https://example.com/files?key=VEA/development/furniture-models/model.glb',
     thumbnailUrl: null,
     nativeWidth: 1.8,
     nativeDepth: 0.8,
@@ -42,7 +43,11 @@ describe('FurnitureAssetsService', () => {
         delete: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
     };
-    r2 = { deleteObject: jest.fn<Promise<void>, [string]>().mockResolvedValue(undefined) };
+    r2 = {
+      deleteObject: jest
+        .fn<Promise<void>, [string]>()
+        .mockResolvedValue(undefined),
+    };
     const fileUrl = new FileUrlService({
       get: () => undefined,
     } as unknown as ConstructorParameters<typeof FileUrlService>[0]);
@@ -117,7 +122,7 @@ describe('FurnitureAssetsService', () => {
       expect(prisma.furnitureAsset.update).not.toHaveBeenCalled();
     });
 
-    it('rejects updating another organization\'s asset', async () => {
+    it("rejects updating another organization's asset", async () => {
       prisma.furnitureAsset.findUnique.mockResolvedValue(asset());
       await expect(
         service.update('asset-1', otherOrgId, { name: 'y' }),
@@ -131,7 +136,7 @@ describe('FurnitureAssetsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('allows updating the organization\'s own asset', async () => {
+    it("allows updating the organization's own asset", async () => {
       prisma.furnitureAsset.findUnique.mockResolvedValue(asset());
       await service.update('asset-1', ownerOrgId, {
         name: 'Yeni İsim',
@@ -144,7 +149,7 @@ describe('FurnitureAssetsService', () => {
       expect(data.isSeating).toBe(true);
     });
 
-    it('allows removing the organization\'s own asset', async () => {
+    it("allows removing the organization's own asset", async () => {
       prisma.furnitureAsset.findUnique.mockResolvedValue(asset());
       await service.remove('asset-1', ownerOrgId);
       expect(prisma.furnitureAsset.delete).toHaveBeenCalledWith({
@@ -155,8 +160,10 @@ describe('FurnitureAssetsService', () => {
     it('deletes the R2 objects behind modelUrl/thumbnailUrl on removal', async () => {
       prisma.furnitureAsset.findUnique.mockResolvedValue(
         asset({
-          modelUrl: 'https://example.com/files?key=VEA/development/furniture-models/model.glb',
-          thumbnailUrl: 'https://example.com/files?key=VEA/development/furniture-thumbnails/thumb.png',
+          modelUrl:
+            'https://example.com/files?key=VEA/development/furniture-models/model.glb',
+          thumbnailUrl:
+            'https://example.com/files?key=VEA/development/furniture-thumbnails/thumb.png',
         }),
       );
       await service.remove('asset-1', ownerOrgId);
@@ -169,7 +176,9 @@ describe('FurnitureAssetsService', () => {
     });
 
     it('skips R2 deletion when thumbnailUrl is null', async () => {
-      prisma.furnitureAsset.findUnique.mockResolvedValue(asset({ thumbnailUrl: null }));
+      prisma.furnitureAsset.findUnique.mockResolvedValue(
+        asset({ thumbnailUrl: null }),
+      );
       await service.remove('asset-1', ownerOrgId);
       expect(r2.deleteObject).toHaveBeenCalledTimes(1);
     });

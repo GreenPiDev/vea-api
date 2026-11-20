@@ -27,6 +27,12 @@ import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
  * (a small piece often hangs higher, a large one lower, at the curator's
  * discretion). When set, the frontend uses this value directly instead of
  * the formula (still clamped to the room's ceiling margin).
+ *
+ * `alongFraction` (2026-11-20): optional curator-dragged position of the
+ * artwork's center along its wall run, as a 0..1 fraction of the run's length
+ * (a fraction, not meters, so it survives the room being resized). Without it
+ * the frontend spaces the wall's artworks in equal slots. Like heightY, the
+ * frontend clamps it to the wall's ends/neighbours at render time.
  */
 export class ArtworkPositionDataDto {
   @IsString()
@@ -37,4 +43,10 @@ export class ArtworkPositionDataDto {
   @Min(0)
   @Max(10)
   heightY?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  alongFraction?: number;
 }

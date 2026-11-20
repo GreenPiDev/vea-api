@@ -71,7 +71,9 @@ describe('ExhibitionsService', () => {
         findUnique: jest.fn<Promise<unknown>, [unknown]>(),
         findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
         update: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
-        updateMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({ count: 0 }),
+        updateMany: jest
+          .fn<Promise<unknown>, [unknown]>()
+          .mockResolvedValue({ count: 0 }),
         delete: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue({}),
       },
       exhibitionArtwork: {

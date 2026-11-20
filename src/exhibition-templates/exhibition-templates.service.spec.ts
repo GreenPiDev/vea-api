@@ -77,7 +77,9 @@ describe('ExhibitionTemplatesService', () => {
     });
 
     it('rejects a furniture placement referencing an asset not visible to this organization', async () => {
-      furnitureAssets.findByOrganization.mockResolvedValue([{ id: 'visible-asset' }]);
+      furnitureAssets.findByOrganization.mockResolvedValue([
+        { id: 'visible-asset' },
+      ]);
       await expect(
         service.create(ownerOrgId, {
           name: 'x',
@@ -85,7 +87,9 @@ describe('ExhibitionTemplatesService', () => {
             kind: 'rectangle',
             width: 10,
             depth: 10,
-            furniture: [{ furnitureId: 'someone-elses-asset', x: 0, z: 0, rotationY: 0 }],
+            furniture: [
+              { furnitureId: 'someone-elses-asset', x: 0, z: 0, rotationY: 0 },
+            ],
           },
           wallHeight: 6,
           wallColor: '#111111',
@@ -97,14 +101,18 @@ describe('ExhibitionTemplatesService', () => {
     });
 
     it('accepts a furniture placement referencing a visible asset', async () => {
-      furnitureAssets.findByOrganization.mockResolvedValue([{ id: 'visible-asset' }]);
+      furnitureAssets.findByOrganization.mockResolvedValue([
+        { id: 'visible-asset' },
+      ]);
       await service.create(ownerOrgId, {
         name: 'x',
         roomShape: {
           kind: 'rectangle',
           width: 10,
           depth: 10,
-          furniture: [{ furnitureId: 'visible-asset', x: 0, z: 0, rotationY: 0 }],
+          furniture: [
+            { furnitureId: 'visible-asset', x: 0, z: 0, rotationY: 0 },
+          ],
         },
         wallHeight: 6,
         wallColor: '#111111',
@@ -215,6 +223,40 @@ describe('ExhibitionTemplatesService', () => {
       expect(prisma.exhibitionTemplate.update).not.toHaveBeenCalled();
     });
 
+    it('treats adding or changing a mezzanine as a shape change once the template is used', async () => {
+      const mezzanine = {
+        wallId: 'north' as const,
+        depth: 4,
+        top: 3.6,
+        stairEnd: 'end' as const,
+      };
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({ _count: { exhibitions: 1 } }),
+      );
+      await expect(
+        service.update('template-1', ownerOrgId, {
+          roomShape: { kind: 'rectangle', width: 14, depth: 10, mezzanine },
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      // Echoing the stored mezzanine unchanged (the form does, shape-locked) is fine.
+      prisma.exhibitionTemplate.findUnique.mockResolvedValue(
+        template({
+          _count: { exhibitions: 1 },
+          roomShape: { kind: 'rectangle', width: 14, depth: 10, mezzanine },
+        }),
+      );
+      await service.update('template-1', ownerOrgId, {
+        roomShape: {
+          kind: 'rectangle',
+          width: 14,
+          depth: 10,
+          mezzanine: { ...mezzanine },
+        },
+      });
+      expect(prisma.exhibitionTemplate.update).toHaveBeenCalled();
+    });
+
     it('still allows color/wallHeight changes once the template is used by an exhibition', async () => {
       prisma.exhibitionTemplate.findUnique.mockResolvedValue(
         template({ _count: { exhibitions: 1 } }),
@@ -302,7 +344,11 @@ describe('ExhibitionTemplatesService', () => {
       const data = prisma.exhibitionTemplate.create.mock.calls[0][0].data;
       expect(data.organizationId).toBe(ownerOrgId);
       expect(data.name).toBe('Rönesans (Kopya)');
-      expect(data.roomShape).toEqual({ kind: 'rectangle', width: 14, depth: 10 });
+      expect(data.roomShape).toEqual({
+        kind: 'rectangle',
+        width: 14,
+        depth: 10,
+      });
       expect(data.wallTextureId).toBe('wood');
       expect(data.theme).toEqual({ wallColor: '#efe4cf' });
       // The clone itself carries no _count — it's a plain create() call, so

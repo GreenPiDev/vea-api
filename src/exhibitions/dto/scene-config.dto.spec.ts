@@ -140,3 +140,91 @@ describe('CreateExhibitionDto sceneConfig discriminated union', () => {
     expect(errors.some((e) => e.property === 'sceneConfig')).toBe(true);
   });
 });
+
+describe('CustomSceneConfigDto windows + outdoor', () => {
+  const window = {
+    id: 'w0',
+    wallId: 'wall-0',
+    alongFraction: 0.5,
+    width: 1.6,
+    height: 2.4,
+    sillHeight: 0.85,
+    styleId: 'classic',
+  };
+
+  it('accepts windows and an outdoor view, and keeps them through the whitelist', async () => {
+    const dto = plainToInstance(CreateExhibitionDto, {
+      ...base,
+      sceneConfig: {
+        ...validCustom,
+        windows: [window],
+        outdoor: { panoramaId: 'garden', rotationY: 2.7 },
+      },
+    });
+
+    const errors = await validate(dto, { whitelist: true });
+
+    expect(errors).toHaveLength(0);
+    const config = dto.sceneConfig as CustomSceneConfigDto;
+    expect(config.windows?.[0]).toMatchObject(window);
+    expect(config.outdoor).toMatchObject({
+      panoramaId: 'garden',
+      rotationY: 2.7,
+    });
+  });
+
+  it('accepts a balcony door with its platform size, kept through the whitelist', async () => {
+    const balcony = {
+      ...window,
+      styleId: 'balcony',
+      sillHeight: 0,
+      balconyWidth: 3.2,
+      balconyDepth: 1.8,
+    };
+    const dto = plainToInstance(CreateExhibitionDto, {
+      ...base,
+      sceneConfig: { ...validCustom, windows: [balcony] },
+    });
+
+    const errors = await validate(dto, { whitelist: true });
+
+    expect(errors).toHaveLength(0);
+    const config = dto.sceneConfig as CustomSceneConfigDto;
+    expect(config.windows?.[0]).toMatchObject(balcony);
+  });
+
+  it.each([
+    ['an unknown style', { styleId: 'gothic' }],
+    ['alongFraction outside 0..1', { alongFraction: 1.2 }],
+    ['a negative sill', { sillHeight: -0.1 }],
+    ['a too-small width', { width: 0.1 }],
+    ['a too-deep balcony', { styleId: 'balcony', balconyDepth: 12 }],
+    ['a non-numeric balcony width', { styleId: 'balcony', balconyWidth: 'wide' }],
+  ])('rejects a window with %s', async (_label, patch) => {
+    const dto = plainToInstance(CreateExhibitionDto, {
+      ...base,
+      sceneConfig: { ...validCustom, windows: [{ ...window, ...patch }] },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((e) => e.property === 'sceneConfig')).toBe(true);
+  });
+
+  it('rejects more windows than MAX_WINDOWS_PER_ROOM', async () => {
+    const dto = plainToInstance(CreateExhibitionDto, {
+      ...base,
+      sceneConfig: {
+        ...validCustom,
+        windows: Array.from({ length: 9 }, (_, i) => ({
+          ...window,
+          id: `w${i}`,
+        })),
+      },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((e) => e.property === 'sceneConfig')).toBe(true);
+  });
+});
