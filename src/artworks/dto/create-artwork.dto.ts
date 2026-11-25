@@ -18,6 +18,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { SUPPORTED_CURRENCIES } from '../../common/currencies';
+import { MAX_DISCOUNT_PERCENT } from '../../common/discount';
 import type { SupportedCurrency } from '../../common/currencies';
 
 export class CreateArtworkDto {
@@ -92,10 +93,14 @@ export class CreateArtworkDto {
   // Whole-percent cap on how far a buyer's offer may undercut priceAmount —
   // omitted/undefined means no floor (see Artwork.maxDiscountPercent's
   // schema comment for the enforcement side, in OffersService.create).
+  // Capped at MAX_DISCOUNT_PERCENT; UpdateArtworkDto inherits it, so an edit
+  // above the cap is refused too.
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(100)
+  @Max(MAX_DISCOUNT_PERCENT, {
+    message: `maxDiscountPercent must not be greater than ${MAX_DISCOUNT_PERCENT}`,
+  })
   maxDiscountPercent?: number;
 
   @IsIn(SUPPORTED_CURRENCIES)
