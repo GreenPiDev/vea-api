@@ -4,13 +4,17 @@
 // to already be in process.env by then in local dev.
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
 import { getCorsOrigins } from './config/cors-origins';
+import { bigintJsonReplacer } from './common/bigint-json';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Money columns are BIGINT — serialize them as plain JSON numbers.
+  app.set('json replacer', bigintJsonReplacer);
   app.enableCors({ origin: getCorsOrigins() });
   app.useGlobalPipes(
     new ValidationPipe({

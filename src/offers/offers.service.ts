@@ -11,7 +11,8 @@ import { PaymentService } from '../payments/payment.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
-import { calculateCommission } from './commission';
+import { calculateCommission, minimumOfferAmount } from './commission';
+import { toSafeNumber } from '../common/bigint-json';
 
 // Event types this service pushes through NotificationsService — plain
 // strings (see Notification model's comment for why), collected here so
@@ -87,10 +88,11 @@ export class OffersService {
     }
 
     if (artwork.maxDiscountPercent != null) {
-      const minAmount = Math.ceil(
-        artwork.priceAmount * (1 - artwork.maxDiscountPercent / 100),
+      const minAmount = minimumOfferAmount(
+        artwork.priceAmount,
+        artwork.maxDiscountPercent,
       );
-      if (dto.amount < minAmount) {
+      if (BigInt(dto.amount) < minAmount) {
         throw new BadRequestException(
           `Offer must be at least ${minAmount} ${artwork.currency}`,
         );
@@ -119,7 +121,8 @@ export class OffersService {
         offerId: offer.id,
         artworkId: artwork.id,
         artworkTitle: artwork.title,
-        amount: offer.amount,
+        // Prisma Json can't hold a bigint (JSON.stringify throws on it).
+        amount: toSafeNumber(offer.amount),
         currency: offer.currency,
       },
     );

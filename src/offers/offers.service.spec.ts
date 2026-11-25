@@ -24,7 +24,8 @@ describe('OffersService', () => {
     id: 'artwork-1',
     title: 'Test Artwork',
     currency: 'TRY',
-    priceAmount: 100_000,
+    // bigint like the real Prisma result (BIGINT column).
+    priceAmount: 100_000n,
     maxDiscountPercent: null,
     status,
     artistProfile: { userId: sellerId, user: { organizationId: orgId } },
@@ -38,7 +39,7 @@ describe('OffersService', () => {
     id: 'offer-1',
     artworkId: 'artwork-1',
     buyerId,
-    amount: 100_000,
+    amount: 100_000n,
     currency: 'TRY',
     status,
     artwork: artwork(),
@@ -167,7 +168,7 @@ describe('OffersService', () => {
       prisma.artwork.findUnique.mockResolvedValueOnce(artwork('LISTED'));
       prisma.offer.create.mockResolvedValueOnce({
         id: 'offer-1',
-        amount: 50_000,
+        amount: 50_000n,
         currency: 'TRY',
       });
       prisma.user.findMany.mockResolvedValueOnce([
@@ -180,6 +181,7 @@ describe('OffersService', () => {
       expect(notifications.createForMany).toHaveBeenCalledWith(
         [sellerId, 'admin-1', 'admin-2'],
         'OFFER_CREATED',
+        // Converted to a plain number — a bigint can't go into the Json column.
         expect.objectContaining({
           artworkId: 'artwork-1',
           amount: 50_000,
@@ -235,6 +237,42 @@ describe('OffersService', () => {
       );
       await service.create(buyerId, 'artwork-1', { amount: 60_000 });
       expect(prisma.offer.create).toHaveBeenCalled();
+    });
+
+    it('accepts an offer above the old Int limit (~21.47M) — the 2026-11-24 production 500', async () => {
+      prisma.artwork.findUnique.mockResolvedValueOnce(
+        artwork('LISTED', {
+          priceAmount: 6_000_000_000n,
+          maxDiscountPercent: 20,
+        }),
+      );
+      // 50M in minor units; minimum is 6_000_000_000 * 0.8 = 4_800_000_000
+      await service.create(buyerId, 'artwork-1', { amount: 5_000_000_000 });
+
+      const [args] = prisma.offer.create.mock.calls[0] as [
+        { data: { amount: number } },
+      ];
+      expect(args.data.amount).toBe(5_000_000_000);
+    });
+
+    it('enforces the minimum exactly on a large price (no float rounding)', async () => {
+      // 9_007_199_254_740_991 (MAX_SAFE) * 0.9 is not exact in floats;
+      // exact ceil is 8_106_479_329_266_892.
+      prisma.artwork.findUnique.mockResolvedValue(
+        artwork('LISTED', {
+          priceAmount: 9_007_199_254_740_991n,
+          maxDiscountPercent: 10,
+        }),
+      );
+      await expect(
+        service.create(buyerId, 'artwork-1', {
+          amount: 8_106_479_329_266_891,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await service.create(buyerId, 'artwork-1', {
+        amount: 8_106_479_329_266_892,
+      });
+      expect(prisma.offer.create).toHaveBeenCalledTimes(1);
     });
 
     it('allows any offer amount when maxDiscountPercent is not set', async () => {
@@ -312,7 +350,7 @@ describe('OffersService', () => {
 
       expect(payments.holdFunds).toHaveBeenCalledWith(
         'offer-1',
-        100_000,
+        100_000n,
         'TRY',
       );
       expect(prisma.transaction.create).toHaveBeenCalledWith({
@@ -328,8 +366,8 @@ describe('OffersService', () => {
         where: { id: 'offer-1' },
         data: {
           status: 'PAYMENT_HELD',
-          commissionAmount: 15_000,
-          commissionTaxAmount: 3_000,
+          commissionAmount: 15_000n,
+          commissionTaxAmount: 3_000n,
         },
       });
     });

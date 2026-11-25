@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "Artwork" ALTER COLUMN "priceAmount" SET DATA TYPE BIGINT;
+
+-- AlterTable
+ALTER TABLE "Offer" ALTER COLUMN "amount" SET DATA TYPE BIGINT,
+ALTER COLUMN "commissionAmount" SET DATA TYPE BIGINT,
+ALTER COLUMN "commissionTaxAmount" SET DATA TYPE BIGINT;

@@ -208,7 +208,8 @@ model Artwork {
   conditionNotes     String?
   note               String?
   category           ArtworkCategory
-  priceAmount        Int
+  /// Minor units (kuruş/cent). BigInt, not Int: Int capped prices at ~21.47M (2^31-1 minor units) and a real 50M offer hit a Postgres out-of-range 500 in production (2026-11-24). The API still speaks plain JSON numbers (see common/bigint-json.ts); DTOs cap input at Number.MAX_SAFE_INTEGER.
+  priceAmount        BigInt
   /// Artist-set cap (0-100, whole percent) on how far a buyer's offer may undercut priceAmount — null means no floor, any offer amount is accepted. Enforced in OffersService.create (minimum = priceAmount * (1 - maxDiscountPercent/100), rounded up) so it can't be bypassed by calling the API directly, not just a frontend UI hint.
   maxDiscountPercent Int?
   currency           String
@@ -386,7 +387,8 @@ model Offer {
   id                  String          @id @default(cuid())
   artworkId           String
   buyerId             String
-  amount              Int
+  /// Minor units, BigInt — same reason as Artwork.priceAmount.
+  amount              BigInt
   currency            String
   status              OfferStatus     @default(PENDING)
   // Informal, artist-facing signal — entirely separate from `status` above.
@@ -395,8 +397,8 @@ model Offer {
   // irreversible preference that the org's admins can see. Null = no
   // decision yet.
   artistDecision      ArtistDecision?
-  commissionAmount    Int?
-  commissionTaxAmount Int?
+  commissionAmount    BigInt?
+  commissionTaxAmount BigInt?
   createdAt           DateTime        @default(now())
   respondedAt         DateTime?
 

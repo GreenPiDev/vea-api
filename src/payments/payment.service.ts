@@ -18,7 +18,8 @@ export class PaymentService {
 
   holdFunds(
     offerId: string,
-    amount: number,
+    // Minor units — bigint like Offer.amount, never a float.
+    amount: bigint,
     currency: string,
   ): Promise<HeldFunds> {
     this.logger.log(
