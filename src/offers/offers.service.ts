@@ -9,18 +9,11 @@ import { ArtistDecision, OfferStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentService } from '../payments/payment.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_TYPES } from '../notifications/notification-types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { calculateCommission, minimumOfferAmount } from './commission';
 import { toSafeNumber } from '../common/bigint-json';
-
-// Event types this service pushes through NotificationsService — plain
-// strings (see Notification model's comment for why), collected here so
-// they're not duplicated across the create()/setArtistDecision() call sites.
-const NOTIFICATION_TYPES = {
-  OfferCreated: 'OFFER_CREATED',
-  OfferDecision: 'OFFER_DECISION',
-} as const;
 
 // Forward-only, matching the flow from the meeting notes:
 // Teklif -> Kabul -> Ödeme/bloke -> Teslimat -> Blokenin kaldırılması.

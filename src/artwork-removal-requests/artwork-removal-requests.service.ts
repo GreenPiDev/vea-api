@@ -6,19 +6,12 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_TYPES } from '../notifications/notification-types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { ExhibitionsService } from '../exhibitions/exhibitions.service';
 import { ArtworksService } from '../artworks/artworks.service';
 import { CreateRemovalRequestDto } from './dto/create-removal-request.dto';
 import type { RemovalDecision } from './dto/decide-removal-request.dto';
-
-// Event types this service pushes through NotificationsService — same
-// "collected here, not duplicated at each call site" pattern as
-// OffersService's NOTIFICATION_TYPES.
-const NOTIFICATION_TYPES = {
-  RemovalRequested: 'ARTWORK_REMOVAL_REQUESTED',
-  RemovalDecided: 'ARTWORK_REMOVAL_DECIDED',
-} as const;
 
 @Injectable()
 export class ArtworkRemovalRequestsService {
@@ -80,7 +73,7 @@ export class ArtworkRemovalRequestsService {
     );
     await this.notifications.createForMany(
       recipients,
-      NOTIFICATION_TYPES.RemovalRequested,
+      NOTIFICATION_TYPES.ArtworkRemovalRequested,
       {
         requestId: request.id,
         artworkId: artwork.id,
@@ -153,7 +146,7 @@ export class ArtworkRemovalRequestsService {
 
     await this.notifications.create(
       request.requestedById,
-      NOTIFICATION_TYPES.RemovalDecided,
+      NOTIFICATION_TYPES.ArtworkRemovalDecided,
       {
         requestId: request.id,
         artworkId: request.artworkId,
