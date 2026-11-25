@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 import { R2Service } from '../common/r2/r2.service';
 import { FileUrlService } from '../common/r2/file-url.service';
+import { ImageCompressionService } from '../common/image/image-compression.service';
 import { slugify } from '../common/slugify';
 import { CreateArtworkDto } from './dto/create-artwork.dto';
 import { UpdateArtworkDto } from './dto/update-artwork.dto';
@@ -25,6 +26,7 @@ export class ArtworksService {
     private readonly artistProfiles: ArtistProfilesService,
     private readonly r2: R2Service,
     private readonly fileUrl: FileUrlService,
+    private readonly images: ImageCompressionService,
   ) {}
 
   async create(userId: string, dto: CreateArtworkDto) {
@@ -44,7 +46,15 @@ export class ArtworksService {
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
     ]);
     const slug = slugify(user.name ?? profile.displayName);
-    const key = await this.r2.uploadImage(file, `artworks/${slug}`);
+    // Only the compressed 2048 px WEBP is stored — the original upload never
+    // reaches R2 (see ImageCompressionService for the size/quality rationale).
+    const image = await this.images.compressToWebp(file.buffer);
+    const key = await this.r2.uploadBuffer(
+      image.buffer,
+      image.contentType,
+      image.extension,
+      `artworks/${slug}`,
+    );
     return { url: this.fileUrl.build(key) };
   }
 

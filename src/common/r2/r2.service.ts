@@ -59,14 +59,25 @@ export class R2Service {
     const extension = file.originalname.includes('.')
       ? file.originalname.slice(file.originalname.lastIndexOf('.'))
       : '';
+    return this.uploadBuffer(file.buffer, file.mimetype, extension, folder);
+  }
+
+  // For bytes the server produced itself (e.g. a compressed artwork image),
+  // where the original filename/mimetype no longer describe the content.
+  async uploadBuffer(
+    body: Buffer,
+    contentType: string,
+    extension: string,
+    folder: string,
+  ): Promise<string> {
     const key = `VEA/${this.envFolder}/${folder}/${randomUUID()}${extension}`;
 
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Body: body,
+        ContentType: contentType,
       }),
     );
 

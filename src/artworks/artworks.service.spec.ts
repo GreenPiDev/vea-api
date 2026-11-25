@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -8,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ArtistProfilesService } from '../artist-profiles/artist-profiles.service';
 import { R2Service } from '../common/r2/r2.service';
 import { FileUrlService } from '../common/r2/file-url.service';
+import { ImageCompressionService } from '../common/image/image-compression.service';
 
 describe('ArtworksService', () => {
   const ownerUserId = 'user-owner';
@@ -36,7 +38,17 @@ describe('ArtworksService', () => {
     getOwnOrThrow: jest.Mock<Promise<typeof profile>, [string]>;
   };
   let r2: {
-    uploadImage: jest.Mock<Promise<string>, [unknown, string]>;
+    uploadBuffer: jest.Mock<Promise<string>, [Buffer, string, string, string]>;
+  };
+  let images: {
+    compressToWebp: jest.Mock<Promise<unknown>, [Buffer]>;
+  };
+  const compressed = {
+    buffer: Buffer.from('webp-bytes'),
+    contentType: 'image/webp',
+    extension: '.webp',
+    width: 2048,
+    height: 1536,
   };
   let service: ArtworksService;
 
@@ -72,11 +84,16 @@ describe('ArtworksService', () => {
         .mockResolvedValue(profile),
     };
     r2 = {
-      uploadImage: jest
-        .fn<Promise<string>, [unknown, string]>()
+      uploadBuffer: jest
+        .fn<Promise<string>, [Buffer, string, string, string]>()
         .mockResolvedValue(
-          'VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+          'VEA/development/artworks/mustafa-akagunduz/abc.webp',
         ),
+    };
+    images = {
+      compressToWebp: jest
+        .fn<Promise<unknown>, [Buffer]>()
+        .mockResolvedValue(compressed),
     };
     const fileUrl = {
       build: (key: string) => `https://api.test/files?key=${key}`,
@@ -86,6 +103,7 @@ describe('ArtworksService', () => {
       artistProfiles as unknown as ArtistProfilesService,
       r2 as unknown as R2Service,
       fileUrl as unknown as FileUrlService,
+      images as unknown as ImageCompressionService,
     );
   });
 
@@ -255,8 +273,10 @@ describe('ArtworksService', () => {
     it('slugifies the caller-owned User.name (Turkish chars) into the R2 folder', async () => {
       await service.uploadImage(ownerUserId, file);
 
-      expect(r2.uploadImage).toHaveBeenCalledWith(
-        file,
+      expect(r2.uploadBuffer).toHaveBeenCalledWith(
+        compressed.buffer,
+        'image/webp',
+        '.webp',
         'artworks/mustafa-akagunduz',
       );
     });
@@ -269,15 +289,17 @@ describe('ArtworksService', () => {
 
       await service.uploadImage(ownerUserId, file);
 
-      expect(r2.uploadImage).toHaveBeenCalledWith(
-        file,
+      expect(r2.uploadBuffer).toHaveBeenCalledWith(
+        compressed.buffer,
+        'image/webp',
+        '.webp',
         'artworks/owner-artist',
       );
     });
 
     it('returns the proxied file URL built from the R2 key', async () => {
       await expect(service.uploadImage(ownerUserId, file)).resolves.toEqual({
-        url: 'https://api.test/files?key=VEA/development/artworks/mustafa-akagunduz/abc.jpg',
+        url: 'https://api.test/files?key=VEA/development/artworks/mustafa-akagunduz/abc.webp',
       });
     });
 
@@ -289,6 +311,28 @@ describe('ArtworksService', () => {
       await expect(service.uploadImage(otherUserId, file)).rejects.toThrow(
         NotFoundException,
       );
+      // No CPU spent compressing (and nothing stored) for a non-artist.
+      expect(images.compressToWebp).not.toHaveBeenCalled();
+      expect(r2.uploadBuffer).not.toHaveBeenCalled();
+    });
+
+    it('compresses the uploaded bytes and never stores the original', async () => {
+      await service.uploadImage(ownerUserId, file);
+
+      expect(images.compressToWebp).toHaveBeenCalledWith(file.buffer);
+      const [storedBody] = r2.uploadBuffer.mock.calls[0];
+      expect(storedBody).toBe(compressed.buffer);
+    });
+
+    it('stores nothing when the image cannot be processed', async () => {
+      images.compressToWebp.mockRejectedValueOnce(
+        new BadRequestException('Görsel işlenemedi'),
+      );
+
+      await expect(service.uploadImage(ownerUserId, file)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(r2.uploadBuffer).not.toHaveBeenCalled();
     });
   });
 });

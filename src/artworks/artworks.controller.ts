@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -26,8 +27,15 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { FileTooLargeFilter } from '../common/filters/file-too-large.filter';
 
-const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+// The upload is compressed server-side (ImageCompressionService) before it
+// reaches R2, so this no longer bounds storage/bandwidth — it only caps how
+// much a single request may buffer in RAM. 25 MB fits full-resolution phone
+// and mirrorless camera JPEGs; the real decode-memory guard is the pixel
+// limit in ImageCompressionService. Mirrored by hand in vea-frontend's
+// ArtworkForm.tsx.
+const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 @Controller('artworks')
@@ -88,10 +96,11 @@ export class ArtworksController {
   // two separate steps (same shape as ASSID's member-logo upload).
   @Post('upload-image')
   @UseGuards(JwtAuthGuard)
+  @UseFilters(new FileTooLargeFilter(MAX_IMAGE_SIZE_BYTES))
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
+      limits: { fileSize: MAX_IMAGE_SIZE_BYTES, files: 1 },
     }),
   )
   async uploadImage(

@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   UploadedFile,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { FileTooLargeFilter } from '../common/filters/file-too-large.filter';
 import { R2Service } from '../common/r2/r2.service';
 import { FileUrlService } from '../common/r2/file-url.service';
 import { FurnitureAssetsService } from './furniture-assets.service';
@@ -90,10 +92,11 @@ export class FurnitureAssetsController {
   @Post('upload-model')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.GALLERY_ADMIN)
+  @UseFilters(new FileTooLargeFilter(MAX_MODEL_SIZE_BYTES))
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: MAX_MODEL_SIZE_BYTES },
+      limits: { fileSize: MAX_MODEL_SIZE_BYTES, files: 1 },
     }),
   )
   async uploadModel(@UploadedFile() file?: Express.Multer.File) {
@@ -108,10 +111,11 @@ export class FurnitureAssetsController {
   @Post('upload-thumbnail')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.GALLERY_ADMIN)
+  @UseFilters(new FileTooLargeFilter(MAX_THUMBNAIL_SIZE_BYTES))
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: MAX_THUMBNAIL_SIZE_BYTES },
+      limits: { fileSize: MAX_THUMBNAIL_SIZE_BYTES, files: 1 },
     }),
   )
   async uploadThumbnail(@UploadedFile() file?: Express.Multer.File) {
