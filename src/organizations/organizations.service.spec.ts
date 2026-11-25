@@ -12,6 +12,7 @@ describe('OrganizationsService — SUPERADMIN organization detail', () => {
     user: {
       count: jest.Mock<Promise<number>, [unknown]>;
       findMany: jest.Mock<Promise<unknown>, [unknown]>;
+      findFirst: jest.Mock<Promise<unknown>, [unknown]>;
     };
     exhibition: {
       findMany: jest.Mock<Promise<unknown>, [unknown]>;
@@ -36,6 +37,9 @@ describe('OrganizationsService — SUPERADMIN organization detail', () => {
       user: {
         count: jest.fn<Promise<number>, [unknown]>().mockResolvedValue(0),
         findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
+        findFirst: jest
+          .fn<Promise<unknown>, [unknown]>()
+          .mockResolvedValue(null),
       },
       exhibition: {
         findMany: jest.fn<Promise<unknown>, [unknown]>().mockResolvedValue([]),
@@ -262,6 +266,27 @@ describe('OrganizationsService — SUPERADMIN organization detail', () => {
         service.listOffersForOverview('nope', { ...page }),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.offer.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getArtistDetail', () => {
+    it('scopes the lookup to a seller of the caller organization', async () => {
+      prisma.user.findFirst.mockResolvedValueOnce({ id: 'u-1' });
+
+      await expect(service.getArtistDetail(orgId, 'u-1')).resolves.toEqual({
+        id: 'u-1',
+      });
+      expect(whereOf(prisma.user.findFirst)).toEqual({
+        id: 'u-1',
+        organizationId: orgId,
+        role: 'SELLER',
+      });
+    });
+
+    it('404s for an artist outside the organization (or a non-artist)', async () => {
+      await expect(
+        service.getArtistDetail(orgId, 'other-org-user'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

@@ -74,6 +74,17 @@ export class OrganizationsController {
     return this.organizations.listArtists(this.requireOrg(user));
   }
 
+  // Three segments, so it can't collide with the SUPERADMIN `:id/...`
+  // routes below (all two segments) regardless of declaration order.
+  @Get('mine/artists/:userId')
+  @Roles(UserRole.GALLERY_ADMIN)
+  getMyArtist(
+    @CurrentUser() user: JwtPayload,
+    @Param('userId') userId: string,
+  ) {
+    return this.organizations.getArtistDetail(this.requireOrg(user), userId);
+  }
+
   @Post('mine/artists')
   @Roles(UserRole.GALLERY_ADMIN)
   addMyArtist(@CurrentUser() user: JwtPayload, @Body() dto: AddOrgAdminDto) {

@@ -115,6 +115,102 @@ export class OrganizationsService {
     });
   }
 
+  // Curator's artist detail page (/dashboard/organization/artists/:id):
+  // profile + every artwork (archived included — the curator manages the
+  // whole portfolio) with its exhibitions, view count and every offer it
+  // received (buyer + commission + payment record). One query, not
+  // paginated: a single artist's portfolio is bounded (tens of works), and
+  // the page derives its KPIs and both tabs from the same payload so tab
+  // switches never refetch. Scoped by organizationId + role so a curator
+  // can never read another gallery's artist (404, not 403 — doesn't leak
+  // whether the id exists elsewhere).
+  async getArtistDetail(organizationId: string, userId: string) {
+    const artist = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId, role: UserRole.SELLER },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        createdAt: true,
+        artistProfile: {
+          select: {
+            id: true,
+            displayName: true,
+            bio: true,
+            institutionName: true,
+            verified: true,
+            createdAt: true,
+            artworks: {
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                title: true,
+                artistDisplayName: true,
+                technique: true,
+                yearCreated: true,
+                heightCm: true,
+                widthCm: true,
+                category: true,
+                priceAmount: true,
+                maxDiscountPercent: true,
+                currency: true,
+                imageUrl: true,
+                status: true,
+                createdAt: true,
+                exhibitionLinks: {
+                  select: {
+                    exhibition: {
+                      select: {
+                        id: true,
+                        title: true,
+                        status: true,
+                        deletedAt: true,
+                      },
+                    },
+                  },
+                },
+                _count: {
+                  select: {
+                    // Unique per (artwork, session) — see VisitEvent's
+                    // @@unique — so this is "distinct viewers", not clicks.
+                    visitEvents: { where: { eventType: 'ARTWORK_VIEW' } },
+                  },
+                },
+                offers: {
+                  orderBy: { createdAt: 'desc' },
+                  select: {
+                    id: true,
+                    amount: true,
+                    currency: true,
+                    status: true,
+                    artistDecision: true,
+                    commissionAmount: true,
+                    commissionTaxAmount: true,
+                    createdAt: true,
+                    respondedAt: true,
+                    buyer: { select: { email: true, name: true } },
+                    transaction: {
+                      select: {
+                        status: true,
+                        provider: true,
+                        providerRef: true,
+                        heldAt: true,
+                        releasedAt: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!artist) throw new NotFoundException('Artist not found');
+    return artist;
+  }
+
   async addArtist(organizationId: string, email: string) {
     await this.assertExists(organizationId);
     return this.users.setArtistForOrganization(email, organizationId);
