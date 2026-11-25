@@ -208,3 +208,28 @@ describe('CreateExhibitionTemplateDto roomShape.mezzanine', () => {
     expect(errors.some((e) => e.property === 'roomShape')).toBe(true);
   });
 });
+
+describe('CreateExhibitionTemplateDto roomShape.spawn (rectangle)', () => {
+  const rect = (spawn: unknown) =>
+    plainToInstance(CreateExhibitionTemplateDto, {
+      ...base,
+      roomShape: { kind: 'rectangle', width: 24, depth: 20, spawn },
+    });
+
+  it('keeps an optional spawn point on a rectangle room', async () => {
+    const dto = rect({ x: 8, z: 0, yaw: Math.PI / 2 });
+
+    expect(await validate(dto)).toHaveLength(0);
+    expect((dto.roomShape as { spawn?: unknown }).spawn).toEqual({
+      x: 8,
+      z: 0,
+      yaw: Math.PI / 2,
+    });
+  });
+
+  it('rejects a malformed spawn point', async () => {
+    const errors = await validate(rect({ x: 'a', z: 0 }));
+
+    expect(errors.length).toBeGreaterThan(0);
+  });
+});

@@ -107,6 +107,14 @@ export class RectangleRoomShapeDto {
   @ValidateNested()
   @Type(() => MezzanineDto)
   mezzanine?: MezzanineDto;
+
+  // Where (room-local meters, origin at the room centre) and facing which way the visitor enters.
+  // Omitted = vea-frontend's galleryLayout.ts default (2 m in front of the south wall, facing north);
+  // the frontend clamps it inside the walls. Not part of shapeChanged — it moves no wall artworks hang on.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SpawnDto)
+  spawn?: SpawnDto;
 }
 
 export class CustomRoomShapeDto {
