@@ -53,6 +53,14 @@ export class ExhibitionsController {
     return this.exhibitions.findOneOwn(id, user.organizationId);
   }
 
+  // Declared before @Get(':id') so `admin` is never taken for an id.
+  @Get('admin/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPERADMIN)
+  getOneForSuperAdmin(@Param('id') id: string) {
+    return this.exhibitions.findOneForSuperAdmin(id);
+  }
+
   @Get('mine/:id/stats')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.GALLERY_ADMIN)

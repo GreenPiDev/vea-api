@@ -27,6 +27,16 @@ const ALLOWED_TRANSITIONS: Record<ExhibitionStatus, ExhibitionStatus[]> = {
   ENDED: [],
 };
 
+// Detail shape for the panel previews (curator's findOneOwn, SUPERADMIN's
+// findOneForSuperAdmin): artwork links with artist (3D wall labels) + the
+// template (room shape lock / furniture organization).
+const DETAIL_INCLUDE = {
+  artworkLinks: {
+    include: { artwork: { include: { artistProfile: true } } },
+  },
+  exhibitionTemplate: true,
+} satisfies Prisma.ExhibitionInclude;
+
 @Injectable()
 export class ExhibitionsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -151,13 +161,22 @@ export class ExhibitionsService {
     await this.assertOwnership(id, organizationId);
     return this.prisma.exhibition.findUnique({
       where: { id },
-      include: {
-        artworkLinks: {
-          include: { artwork: { include: { artistProfile: true } } },
-        },
-        exhibitionTemplate: true,
-      },
+      include: DETAIL_INCLUDE,
     });
+  }
+
+  // SUPERADMIN preview (organization detail page → "Görüntüle"): the same
+  // detail shape the curator's own preview gets, for any organization's
+  // exhibition and any status (DRAFT, soft-deleted included) — the public
+  // findOneForView 404s on those. Read-only; no ownership check by design,
+  // the route is SUPERADMIN-only.
+  async findOneForSuperAdmin(id: string) {
+    const exhibition = await this.prisma.exhibition.findUnique({
+      where: { id },
+      include: DETAIL_INCLUDE,
+    });
+    if (!exhibition) throw new NotFoundException('Exhibition not found');
+    return exhibition;
   }
 
   async findOneForView(id: string) {

@@ -108,6 +108,35 @@ describe('ExhibitionsService', () => {
     service = new ExhibitionsService(prisma as unknown as PrismaService);
   });
 
+  describe('findOneForSuperAdmin', () => {
+    it('returns any exhibition regardless of status or organization (DRAFT included)', async () => {
+      const draft = {
+        id: 'ex-1',
+        status: 'DRAFT',
+        organizationId: 'other-org',
+      };
+      prisma.exhibition.findUnique.mockResolvedValueOnce(draft);
+
+      await expect(service.findOneForSuperAdmin('ex-1')).resolves.toBe(draft);
+      const [args] = prisma.exhibition.findUnique.mock.calls[0] as [
+        { where: unknown; include: Record<string, unknown> },
+      ];
+      expect(args.where).toEqual({ id: 'ex-1' });
+      // Same detail shape the curator preview renders from.
+      expect(Object.keys(args.include).sort()).toEqual([
+        'artworkLinks',
+        'exhibitionTemplate',
+      ]);
+    });
+
+    it('404s for an unknown exhibition', async () => {
+      prisma.exhibition.findUnique.mockResolvedValueOnce(null);
+      await expect(service.findOneForSuperAdmin('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('create', () => {
     it('attaches the caller as curatorUserId and their organizationId', async () => {
       await service.create(ownerUserId, ownerOrgId, {
