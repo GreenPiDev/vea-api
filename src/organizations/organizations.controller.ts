@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -14,6 +15,11 @@ import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { AddOrgAdminDto } from './dto/add-org-admin.dto';
+import {
+  OrgArtistsQueryDto,
+  OrgExhibitionsQueryDto,
+  OrgOffersQueryDto,
+} from './dto/org-overview-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -81,6 +87,39 @@ export class OrganizationsController {
     @Param('userId') userId: string,
   ) {
     return this.organizations.removeArtist(this.requireOrg(user), userId);
+  }
+
+  // ---- SUPERADMIN organization detail page (class-level @Roles) ----------
+  // Declared AFTER the `mine/...` routes on purpose: Express matches in
+  // declaration order, so a `:id/...` pattern above them would capture
+  // `mine` as an id and the class-level SUPERADMIN role would 403 curators.
+  // The artists route is also named `artists-overview`, not `artists`, so
+  // it can never shadow GET mine/artists regardless of order.
+
+  @Get(':id')
+  getOverview(@Param('id') id: string) {
+    return this.organizations.getOverview(id);
+  }
+
+  @Get(':id/exhibitions')
+  listExhibitions(
+    @Param('id') id: string,
+    @Query() query: OrgExhibitionsQueryDto,
+  ) {
+    return this.organizations.listExhibitionsForOverview(id, query);
+  }
+
+  @Get(':id/artists-overview')
+  listArtistsOverview(
+    @Param('id') id: string,
+    @Query() query: OrgArtistsQueryDto,
+  ) {
+    return this.organizations.listArtistsForOverview(id, query);
+  }
+
+  @Get(':id/offers')
+  listOffers(@Param('id') id: string, @Query() query: OrgOffersQueryDto) {
+    return this.organizations.listOffersForOverview(id, query);
   }
 
   // Defensive only — in practice an ADMIN always has an organizationId
