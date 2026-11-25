@@ -6,6 +6,7 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { R2Service } from '../common/r2/r2.service';
 
@@ -15,6 +16,14 @@ import { R2Service } from '../common/r2/r2.service';
 // own (already-TLS-terminated, already-CORS-configured) domain instead.
 // Public/unauthenticated — same visibility model as GET /exhibitions,
 // artwork images are meant to be publicly viewable.
+// Own rate limit, well above the global one (RATE_LIMIT_MAX, 60/min): opening
+// an exhibition fetches every artwork image (+ thumbnails) at once, so a few
+// page reloads — or several visitors behind one shared IP at an event — used
+// to hit 429 and the 3D scene silently dropped the works. Still bounded, since
+// every request streams bytes from R2 through this server.
+export const FILES_RATE_LIMIT = { limit: 600, ttl: 60_000 };
+
+@Throttle({ default: FILES_RATE_LIMIT })
 @Controller('files')
 export class FilesController {
   constructor(private readonly r2: R2Service) {}
